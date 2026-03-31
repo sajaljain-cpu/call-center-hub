@@ -1,0 +1,2530 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Call Center Hub</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<style>
+* { box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; margin: 0; background: #F4F5F7; color: #172B4D; }
+
+/* ── Jira Sidebar ── */
+.sidebar { background: #1D2125; width: 220px; min-height: 100vh; flex-shrink: 0; position: fixed; top: 0; left: 0; height: 100vh; z-index: 100; display: flex; flex-direction: column; }
+.nav-item { display: flex; align-items: center; gap: 9px; padding: 8px 12px; cursor: pointer; border-radius: 4px; margin: 1px 6px; color: #9FADBC; font-size: 13px; font-weight: 500; transition: all 0.1s; }
+.nav-item:hover { background: #2C333A; color: #DEE4EA; }
+.nav-item.active { background: #1C2B41; color: #4C9AFF; }
+.nav-item .notif-dot { background: #FF5630; color: #fff; border-radius: 999px; font-size: 10px; font-weight: 700; padding: 1px 5px; min-width: 17px; text-align: center; margin-left: auto; }
+
+/* ── Jira Top Header ── */
+.app-header { height: 48px; background: #0052CC; display: flex; align-items: center; padding: 0 16px; gap: 12px; position: sticky; top: 0; z-index: 90; box-shadow: 0 1px 0 rgba(0,0,0,0.2); }
+
+/* ── Jira Status Lozenges ── */
+.badge { display: inline-flex; align-items: center; padding: 2px 7px; border-radius: 3px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; }
+.status-open           { background: #DEEBFF; color: #0747A6; }
+.status-acknowledged   { background: #EAE6FF; color: #403294; }
+.status-in_progress    { background: #E3FCEF; color: #006644; }
+.status-pending_review { background: #FFFAE6; color: #172B4D; }
+.status-closed         { background: #DFE1E6; color: #42526E; }
+.priority-urgent { background: #FF5630; color: #fff; }
+.priority-high   { background: #FF991F; color: #fff; }
+.priority-normal { background: #0052CC; color: #fff; }
+.priority-low    { background: #DFE1E6; color: #42526E; }
+.sla-ok     { background: #E3FCEF; color: #006644; }
+.sla-warn   { background: #FFFAE6; color: #172B4D; }
+.sla-breach { background: #FFEBE6; color: #BF2600; }
+
+/* ── Buttons ── */
+.btn { display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; border-radius: 3px; font-size: 13px; font-weight: 500; cursor: pointer; border: none; transition: all 0.1s; }
+.btn-primary   { background: #0052CC; color: #fff; }
+.btn-primary:hover   { background: #0747A6; }
+.btn-secondary { background: #F4F5F7; color: #42526E; border: 1px solid #DFE1E6; }
+.btn-secondary:hover { background: #EBECF0; }
+.btn-danger  { background: #FF5630; color: #fff; }
+.btn-danger:hover  { background: #DE350B; }
+.btn-success { background: #00875A; color: #fff; }
+.btn-success:hover { background: #006644; }
+.btn-sm { padding: 3px 10px; font-size: 11.5px; }
+.btn-header { background: rgba(255,255,255,0.15); color: #fff; border: 1px solid rgba(255,255,255,0.3); }
+.btn-header:hover { background: rgba(255,255,255,0.25); }
+
+/* ── Forms ── */
+.form-input { width: 100%; padding: 7px 10px; border: 2px solid #DFE1E6; border-radius: 3px; font-size: 13px; outline: none; background: #fff; color: #172B4D; }
+.form-input:focus { border-color: #4C9AFF; box-shadow: 0 0 0 2px rgba(76,154,255,0.2); }
+.form-label { display: block; font-size: 11.5px; font-weight: 700; color: #6B778C; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.04em; }
+
+/* ── Views ── */
+.view { display: none; }
+.view.active { display: block; }
+
+
+/* ── Slide-over ── */
+.slideover-overlay { position: fixed; inset: 0; background: rgba(9,30,66,0.35); z-index: 200; opacity: 0; pointer-events: none; transition: opacity 0.15s; }
+.slideover-overlay.open { opacity: 1; pointer-events: all; }
+.slideover-panel { position: fixed; top: 0; right: -560px; width: 560px; height: 100vh; background: #fff; z-index: 201; transition: right 0.2s cubic-bezier(0.4,0,0.2,1); overflow-y: auto; display: flex; flex-direction: column; box-shadow: -2px 0 8px rgba(9,30,66,0.25); }
+.slideover-panel.open { right: 0; }
+.timeline-item { position: relative; padding-left: 26px; padding-bottom: 12px; }
+.timeline-item::before { content:''; position:absolute; left:7px; top:16px; bottom:0; width:2px; background:#EBECF0; }
+.timeline-item:last-child::before { display:none; }
+.timeline-dot { position:absolute; left:1px; top:3px; width:13px; height:13px; border-radius:50%; background:#0052CC; border:2px solid #fff; box-shadow:0 0 0 2px #0052CC; }
+
+/* ── Notifications ── */
+.notif-panel { position:fixed; top:48px; right:8px; width:340px; background:#fff; border:1px solid #DFE1E6; border-radius:3px; box-shadow:0 8px 16px rgba(9,30,66,0.25); z-index:300; display:none; max-height:460px; overflow-y:auto; }
+.notif-panel.open { display:block; }
+.notif-item { padding:10px 14px; border-bottom:1px solid #F4F5F7; cursor:pointer; transition:background 0.1s; }
+.notif-item:hover { background:#F4F5F7; }
+.notif-item.unread { background:#DEEBFF; }
+
+/* ── Misc ── */
+.modal-overlay { position:fixed; inset:0; background:rgba(9,30,66,0.54); z-index:400; display:flex; align-items:center; justify-content:center; }
+.modal-box { background:#fff; border-radius:3px; padding:24px; width:560px; max-width:95vw; max-height:90vh; overflow-y:auto; box-shadow:0 8px 16px rgba(9,30,66,0.3); }
+.toast { position:fixed; bottom:24px; right:24px; z-index:9999; display:flex; flex-direction:column; gap:8px; }
+.toast-item { padding:11px 16px; border-radius:3px; font-size:13px; font-weight:500; color:#fff; box-shadow:0 4px 12px rgba(9,30,66,0.25); animation:slideIn 0.2s ease; max-width:300px; }
+.toast-success { background:#00875A; }
+.toast-error   { background:#FF5630; }
+.toast-info    { background:#0052CC; }
+@keyframes slideIn { from{transform:translateX(110%);opacity:0} to{transform:none;opacity:1} }
+.stat-card { background:#fff; border-radius:3px; padding:16px 20px; border:1px solid #DFE1E6; }
+.overdue-row { background:#FFEBE6!important; }
+.th-sort { cursor:pointer; user-select:none; white-space:nowrap; }
+.th-sort:hover { color:#0052CC; }
+.sort-arrow { margin-left:3px; font-size:10px; opacity:0.3; }
+.sort-arrow.on { opacity:1; color:#0052CC; }
+.qf-btn { padding:4px 12px; border-radius:999px; font-size:11.5px; font-weight:600; cursor:pointer; border:1px solid #DFE1E6; background:#fff; color:#42526E; transition:all 0.1s; }
+.qf-btn:hover { background:#EBECF0; }
+.qf-btn.active { background:#0052CC; color:#fff; border-color:#0052CC; }
+.task-row { cursor:pointer; transition:background 0.1s; }
+.rich-editor-wrap { border:2px solid #DFE1E6; border-radius:3px; background:#fff; transition:border-color 0.15s; }
+.rich-editor-wrap:focus-within { border-color:#4C9AFF; box-shadow:0 0 0 2px rgba(76,154,255,0.2); }
+.rich-toolbar { display:flex; flex-wrap:wrap; gap:2px; padding:5px 7px; border-bottom:1px solid #EBECF0; background:#F8F9FA; }
+.rich-toolbar button { background:none; border:1px solid transparent; border-radius:3px; padding:3px 7px; font-size:12px; cursor:pointer; color:#42526E; min-width:28px; }
+.rich-toolbar button:hover { background:#EBECF0; border-color:#DFE1E6; }
+.rich-toolbar .sep { color:#DFE1E6; padding:0 3px; align-self:center; font-size:16px; }
+.rich-editor { min-height:120px; max-height:320px; overflow-y:auto; padding:10px 12px; font-size:13px; color:#172B4D; outline:none; line-height:1.6; }
+.rich-editor table { border-collapse:collapse; width:100%; margin:8px 0; }
+.rich-editor th { border:1px solid #DFE1E6; padding:6px 10px; background:#F4F5F7; font-weight:600; font-size:12px; text-align:left; }
+.rich-editor td { border:1px solid #DFE1E6; padding:6px 10px; font-size:13px; }
+.rich-editor h3 { font-size:14px; font-weight:700; margin:8px 0 4px; color:#172B4D; }
+.rich-editor ul, .rich-editor ol { padding-left:20px; margin:4px 0; }
+.rich-editor li { margin:2px 0; }
+.rich-editor hr { border:none; border-top:1px solid #DFE1E6; margin:8px 0; }
+.desc-body table { border-collapse:collapse; width:100%; margin:8px 0; }
+.desc-body th { border:1px solid #DFE1E6; padding:6px 10px; background:#F4F5F7; font-weight:600; font-size:12px; text-align:left; }
+.desc-body td { border:1px solid #DFE1E6; padding:6px 10px; font-size:13px; }
+.desc-body h3 { font-size:14px; font-weight:700; margin:8px 0 4px; }
+.desc-body ul, .desc-body ol { padding-left:20px; margin:4px 0; }
+.desc-body li { margin:2px 0; }
+.task-row:hover { background:#F4F5F7; }
+.tab-btn { padding:8px 16px; font-size:13px; font-weight:500; cursor:pointer; border-bottom:2px solid transparent; color:#6B778C; background:none; border-top:none; border-left:none; border-right:none; }
+.tab-btn.active { color:#0052CC; border-bottom-color:#0052CC; }
+::-webkit-scrollbar { width:5px; height:5px; }
+::-webkit-scrollbar-track { background:#F4F5F7; }
+::-webkit-scrollbar-thumb { background:#C1C7D0; border-radius:3px; }
+</style>
+</head>
+<body>
+<div id="toast-container" class="toast"></div>
+
+<!-- ═══════════ LOGIN ═══════════ -->
+<div id="page-login" class="min-h-screen flex items-center justify-center p-4" style="display:none;background:#0052CC">
+  <div class="bg-white w-full max-w-sm p-8" style="border-radius:3px;box-shadow:0 8px 16px rgba(9,30,66,0.3)">
+    <div class="text-center mb-7">
+      <div class="inline-flex items-center justify-center w-12 h-12 bg-blue-600 rounded mb-4" style="background:#0052CC">
+        <span class="text-white font-black text-xl">J</span>
+      </div>
+      <h1 class="text-xl font-bold" style="color:#172B4D">Call Center Hub</h1>
+      <p class="text-sm mt-1" style="color:#6B778C">Log in to your account</p>
+    </div>
+    <div class="space-y-4">
+      <div><label class="form-label">Email</label><input id="login-email" type="email" class="form-input" placeholder="you@example.com" onkeydown="if(event.key==='Enter')doLogin()"/></div>
+      <div><label class="form-label">Password</label><input id="login-password" type="password" class="form-input" placeholder="••••••••" onkeydown="if(event.key==='Enter')doLogin()"/></div>
+      <div id="login-error" class="hidden text-red-600 text-sm bg-red-50 rounded-lg p-3"></div>
+      <button onclick="doLogin()" class="btn btn-primary w-full justify-center text-sm py-2.5">Sign In</button>
+    </div>
+    <div class="mt-5 p-4 rounded" style="background:#F4F5F7;border:1px solid #DFE1E6">
+      <p class="text-xs font-bold mb-3" style="color:#5E6C84;text-transform:uppercase;letter-spacing:.05em">Demo Accounts — click to fill</p>
+      <div class="space-y-1.5 text-sm">
+        <div class="flex justify-between cursor-pointer hover:bg-slate-100 rounded p-1.5" onclick="fillDemo('admin@hub.com','admin123')"><span class="font-medium text-slate-700">Admin</span><span class="text-slate-400 font-mono text-xs">admin@hub.com / admin123</span></div>
+        <div class="mt-1 mb-1 text-xs text-slate-400 font-semibold uppercase tracking-wide px-1">— External Call Centers —</div>
+        <div class="flex justify-between cursor-pointer hover:bg-slate-100 rounded p-1.5" onclick="fillDemo('agent1@cc1.com','pass123')"><span class="font-medium text-slate-700">CC1 Agent</span><span class="text-slate-400 font-mono text-xs">agent1@cc1.com / pass123</span></div>
+        <div class="flex justify-between cursor-pointer hover:bg-slate-100 rounded p-1.5" onclick="fillDemo('agent2@cc2.com','pass123')"><span class="font-medium text-slate-700">CC2 Agent</span><span class="text-slate-400 font-mono text-xs">agent2@cc2.com / pass123</span></div>
+        <div class="mt-1 mb-1 text-xs text-slate-400 font-semibold uppercase tracking-wide px-1">— Internal Teams —</div>
+        <div class="flex justify-between cursor-pointer hover:bg-slate-100 rounded p-1.5" onclick="fillDemo('training@internal.com','pass123')"><span class="font-medium text-slate-700">Training Team</span><span class="text-slate-400 font-mono text-xs">training@internal.com / pass123</span></div>
+        <div class="flex justify-between cursor-pointer hover:bg-slate-100 rounded p-1.5" onclick="fillDemo('qa@internal.com','pass123')"><span class="font-medium text-slate-700">QA Team</span><span class="text-slate-400 font-mono text-xs">qa@internal.com / pass123</span></div>
+        <div class="flex justify-between cursor-pointer hover:bg-slate-100 rounded p-1.5" onclick="fillDemo('ops@internal.com','pass123')"><span class="font-medium text-slate-700">Ops Team</span><span class="text-slate-400 font-mono text-xs">ops@internal.com / pass123</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ MAIN APP ═══════════ -->
+<div id="page-app" style="display:none;">
+
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div class="p-3 border-b border-gray-700">
+      <div class="flex items-center gap-2.5 px-1 py-1">
+        <div class="w-7 h-7 bg-blue-600 rounded flex items-center justify-center flex-shrink-0 text-white font-black text-sm">J</div>
+        <div>
+          <div class="text-white text-xs font-semibold">Call Center Hub</div>
+          <div class="text-gray-500 text-xs" id="sidebar-team"></div>
+        </div>
+      </div>
+    </div>
+    <nav class="flex-1 p-2 space-y-0.5 overflow-y-auto pt-3">
+      <div class="nav-item active" id="nav-tasks" onclick="navigate('tasks')">
+        <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"/></svg>
+        All Tasks
+      </div>
+      <div class="nav-item" id="nav-mytasks" onclick="navigate('mytasks')">
+        <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+        <span id="mytasks-nav-label">My Tickets</span>
+      </div>
+      <div class="nav-item" id="nav-dashboard" onclick="navigate('dashboard')">
+        <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
+        Dashboard
+      </div>
+      <div class="nav-item hidden" id="nav-admin" onclick="navigate('admin')">
+        <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+        Admin Panel
+      </div>
+    </nav>
+    <div class="p-2 border-t border-gray-700">
+      <div class="flex items-center gap-2 px-2 py-2 mb-1 rounded">
+        <div class="w-7 h-7 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0" id="sidebar-avatar"></div>
+        <div class="min-w-0 flex-1">
+          <div class="text-gray-200 text-xs font-semibold truncate" id="sidebar-name"></div>
+          <div class="text-gray-500 text-xs capitalize" id="sidebar-role"></div>
+        </div>
+      </div>
+      <div class="nav-item" style="color:#9FADBC" onclick="doLogout()">
+        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+        Log out
+      </div>
+    </div>
+  </div>
+
+  <!-- Main area -->
+  <div style="margin-left:220px; min-height:100vh; display:flex; flex-direction:column;">
+
+    <!-- Jira-style Header -->
+    <div class="app-header">
+      <div class="text-white font-bold text-sm tracking-wide mr-4" id="header-title">📋 Board</div>
+      <div class="flex-1"></div>
+      <div class="flex items-center gap-2">
+        <button onclick="toggleNotifPanel(event)" class="relative p-1.5 rounded hover:bg-blue-700 transition-colors">
+          <svg class="w-5 h-5 text-white opacity-80" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
+          <span id="bell-badge" class="hidden absolute -top-0.5 -right-0.5 bg-red-500 text-white rounded-full w-4 h-4 flex items-center justify-center font-bold" style="font-size:9px;min-width:16px"></span>
+        </button>
+        <button onclick="backupData()" class="btn btn-header text-xs font-semibold" title="Download full backup">&#8659; Backup</button>
+        <label class="btn btn-header text-xs font-semibold" title="Restore from backup" style="cursor:pointer;margin:0">&#8657; Restore<input type="file" accept=".json" style="display:none" onchange="restoreData(event)"/></label>
+        <span id="sb-dot" title="Supabase: not configured" class="w-2 h-2 rounded-full bg-slate-500 opacity-60 flex-shrink-0"></span>
+        <button onclick="openCreateModal()" class="btn btn-header text-xs font-semibold">
+          + Create
+        </button>
+        <div class="w-7 h-7 rounded-full bg-blue-800 flex items-center justify-center text-white text-xs font-bold cursor-pointer ml-1" id="header-avatar" title=""></div>
+      </div>
+    </div>
+
+    <!-- Views -->
+    <div class="flex-1 p-5">
+
+      <!-- ALL TASKS -->
+      <div id="view-tasks" class="view">
+        <div class="flex items-center justify-between mb-4">
+          <h1 class="text-xl font-bold text-slate-900">All Tasks</h1>
+          <button onclick="exportTasksCSV()" class="btn btn-secondary text-xs">Export CSV</button>
+        </div>
+        <div class="bg-white rounded-xl border border-slate-200 p-4 mb-4">
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
+            <input id="filter-search" type="text" placeholder="Search..." class="form-input md:col-span-2" oninput="renderTasksList()"/>
+            <select id="filter-status" class="form-input" onchange="renderTasksList()"><option value="">All Statuses</option><option value="open">Open</option><option value="acknowledged">Acknowledged</option><option value="in_progress">In Progress</option><option value="pending_review">Pending Review</option><option value="closed">Closed</option></select>
+            <select id="filter-priority" class="form-input" onchange="renderTasksList()"><option value="">All Priorities</option><option value="urgent">Urgent</option><option value="high">High</option><option value="normal">Normal</option><option value="low">Low</option></select>
+          </div>
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <select id="filter-team" class="form-input" onchange="populateAgentFilter();renderTasksList()"><option value="">All Teams</option></select>
+            <select id="filter-agent" class="form-input" onchange="renderTasksList()"><option value="">All Agents</option></select>
+            <select id="filter-raised-by-team" class="form-input" onchange="renderTasksList()"><option value="">All Raising Teams</option></select>
+            <select id="filter-category" class="form-input" onchange="renderTasksList()"><option value="">All Categories</option></select>
+          </div>
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3">
+            <select id="filter-lob" class="form-input" onchange="renderTasksList()">
+              <option value="">All LOBs</option>
+              <option value="Inbound">Inbound</option>
+              <option value="L2CS">L2CS</option>
+              <option value="High Pain">High Pain</option>
+              <option value="Low Pain">Low Pain</option>
+              <option value="Sales">Sales</option>
+              <option value="Staute">Staute</option>
+              <option value="Router Recovery">Router Recovery</option>
+            </select>
+          </div>
+          <div class="flex items-center gap-2 flex-wrap mt-2">
+            <span class="text-xs text-slate-500 font-semibold uppercase tracking-wide">Quick:</span>
+            <button class="qf-btn" id="qf-overdue" onclick="setQuickFilter('overdue')">&#9888; Overdue</button>
+            <button class="qf-btn" id="qf-today" onclick="setQuickFilter('today')">Due Today</button>
+            <button class="qf-btn" id="qf-week" onclick="setQuickFilter('week')">This Week</button>
+          </div>
+        </div>
+        <div class="bg-white rounded-xl border border-slate-200 overflow-hidden">
+          <table class="w-full text-sm">
+            <thead><tr class="border-b border-slate-200 bg-slate-50">
+              <th class="text-left p-3 font-semibold text-slate-600 th-sort" onclick="sortTasks('title')">Title <span class="sort-arrow" id="sa-title">&#8597;</span></th>
+              <th class="text-left p-3 font-semibold text-slate-600 th-sort" onclick="sortTasks('status')">Status <span class="sort-arrow" id="sa-status">&#8597;</span></th>
+              <th class="text-left p-3 font-semibold text-slate-600 th-sort" onclick="sortTasks('priority')">Priority <span class="sort-arrow" id="sa-priority">&#8597;</span></th>
+              <th class="text-left p-3 font-semibold text-slate-600">LOB</th>
+              <th class="text-left p-3 font-semibold text-slate-600 th-sort" onclick="sortTasks('team')">Assigned To <span class="sort-arrow" id="sa-team">&#8597;</span></th>
+              <th class="text-left p-3 font-semibold text-slate-600 th-sort" onclick="sortTasks('raised_by')">Raised By <span class="sort-arrow" id="sa-raised_by">&#8597;</span></th>
+              <th class="text-left p-3 font-semibold text-slate-600 th-sort" onclick="sortTasks('due_date')">Due <span class="sort-arrow" id="sa-due_date">&#8597;</span></th>
+              <th class="text-left p-3 font-semibold text-slate-600">SLA</th>
+            </tr></thead>
+            <tbody id="tasks-tbody"></tbody>
+          </table>
+          <div id="tasks-empty" class="hidden text-center py-14 text-slate-400 text-sm">No tasks found</div>
+        </div>
+      </div>
+
+      <!-- MY TASKS -->
+      <div id="view-mytasks" class="view">
+        <h1 class="text-xl font-bold text-slate-900 mb-4" id="mytasks-heading">My Tasks</h1>
+        <div class="bg-white rounded-xl border border-slate-200 overflow-hidden">
+          <table class="w-full text-sm">
+            <thead><tr class="border-b border-slate-200 bg-slate-50">
+              <th class="text-left p-3 font-semibold text-slate-600">Title</th>
+              <th class="text-left p-3 font-semibold text-slate-600">Status</th>
+              <th class="text-left p-3 font-semibold text-slate-600">Priority</th>
+              <th class="text-left p-3 font-semibold text-slate-600">Due</th>
+              <th class="text-left p-3 font-semibold text-slate-600">SLA</th>
+            </tr></thead>
+            <tbody id="mytasks-tbody"></tbody>
+          </table>
+          <div id="mytasks-empty" class="hidden text-center py-14 text-slate-400 text-sm">No tasks assigned to you</div>
+        </div>
+      </div>
+
+      <!-- DASHBOARD -->
+      <div id="view-dashboard" class="view">
+        <div class="flex items-center justify-between mb-5">
+          <div>
+            <h1 class="text-xl font-bold text-slate-900" id="dash-greeting"></h1>
+            <p class="text-slate-500 text-sm" id="dash-date"></p>
+          </div>
+        </div>
+        <div class="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-5" id="dash-stats"></div>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-5" id="dash-charts"></div>
+        <div id="dash-sla" class="mb-5"></div>
+        <div id="dash-team-perf" class="mb-5"></div>
+        <div id="dash-agent-perf" class="mb-5"></div>
+        <div id="dash-lob-perf" class="mb-5"></div>
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+          <div class="bg-white rounded-xl border border-slate-200 p-5">
+            <h2 class="font-semibold text-slate-800 mb-4 text-sm" id="dash-attention-title">Needs Attention</h2>
+            <div id="dash-recent" class="space-y-2"></div>
+          </div>
+          <div class="bg-white rounded-xl border border-slate-200 p-5">
+            <h2 class="font-semibold text-slate-800 mb-3 text-sm">Activity Feed</h2>
+            <div id="dash-activity" class="space-y-2 text-sm"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ADMIN -->
+      <div id="view-admin" class="view">
+        <h1 class="text-xl font-bold text-slate-900 mb-5">Admin Panel</h1>
+        <div class="border-b border-slate-200 mb-5">
+          <div class="flex gap-0 flex-wrap">
+            <button class="tab-btn active" id="tab-teams" onclick="switchAdminTab('teams')">Teams</button>
+            <button class="tab-btn" id="tab-users" onclick="switchAdminTab('users')">Users</button>
+            <button class="tab-btn" id="tab-categories" onclick="switchAdminTab('categories')">Categories</button>
+            <button class="tab-btn" id="tab-lob" onclick="switchAdminTab('lob')">LOB</button>
+          <button class="tab-btn" id="tab-recurring" onclick="switchAdminTab('recurring')">&#9654; Recurring</button>
+            <button class="tab-btn" id="tab-email" onclick="switchAdminTab('email')">Email Settings</button>
+          </div>
+        </div>
+        <div id="admin-tab-content"></div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- Notification panel -->
+<div id="notif-panel" class="notif-panel">
+  <div class="flex items-center justify-between p-4 border-b border-slate-100">
+    <span class="font-semibold text-slate-800 text-sm">Notifications</span>
+    <button onclick="markAllRead()" class="text-xs text-blue-600 hover:underline">Mark all read</button>
+  </div>
+  <div id="notif-list"></div>
+</div>
+
+<!-- Slide-over overlay + panel -->
+<div id="slideover-overlay" class="slideover-overlay" onclick="closeSlideOver()"></div>
+<div id="slideover-panel" class="slideover-panel">
+  <div id="slideover-content"></div>
+</div>
+
+<!-- Modal container (create task + other modals) -->
+<div id="modal-container"></div>
+
+<script>
+// ══════════════════════════════════════════════════════════════════════════════
+//  SUPABASE CONFIG  ← paste your credentials here
+// ══════════════════════════════════════════════════════════════════════════════
+const SUPABASE_URL      = 'https://lfcjxqhmqcqhocrhetiq.supabase.co'
+const RESEND_API_KEY    = 're_jNB6iqV9_9DWnBE7sRKgzsT6TyqKG4sTw'
+const RESEND_FROM       = 'Call Center Hub <onboarding@resend.dev>'
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxmY2p4cWhtcWNxaG9jcmhldGlxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ1MzMxMDAsImV4cCI6MjA5MDEwOTEwMH0.9mWqY9ZZgcerxU6TFUs3ped4ZJs9eDxcRUUdOOFmS-s'
+
+let _sb      = null   // Supabase client
+let _sbReady = false
+
+function initSupabase() {
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return
+  try {
+    _sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+    _sbReady = true
+    const dot = document.getElementById('sb-dot')
+    if (dot) { dot.classList.replace('bg-slate-500','bg-green-400'); dot.title='Supabase: connected' }
+    console.log('[CCH] Supabase connected')
+  } catch(e) { console.warn('[CCH] Supabase init failed', e) }
+}
+
+async function syncFromSupabase() {
+  await _sbLoadConfig()
+  checkRecurringTasks()
+  if (!_sbReady) return
+  try {
+    const { data: tickets, error } = await _sb.from('cch_tickets').select('*')
+    if (!error && tickets) localStorage.setItem('cch_tasks', JSON.stringify(tickets))
+    const { data: acts } = await _sb.from('cch_activity').select('*').order('time',{ascending:false}).limit(80)
+    if (acts) localStorage.setItem('cch_activity', JSON.stringify(acts.map(a=>({msg:a.msg,who:a.who,time:a.time}))))
+    console.log('[CCH] Synced from Supabase:', tickets?.length, 'tickets')
+  } catch(e) { console.warn('[CCH] Supabase sync failed', e) }
+}
+
+async function _sbUpsertTickets(tasks) {
+  if (!_sbReady) return
+  try { await _sb.from('cch_tickets').upsert(tasks) } catch(e) {}
+}
+
+async function _sbDeleteTicket(id) {
+  if (!_sbReady) return
+  try { await _sb.from('cch_tickets').delete().eq('id', id) } catch(e) {}
+}
+
+async function _sbInsertActivity(entry) {
+  if (!_sbReady) return
+  try { await _sb.from('cch_activity').insert({msg:entry.msg, who:entry.who, time:entry.time}) } catch(e) {}
+}
+
+async function _sbSaveConfig(key, value) {
+  if (!_sbReady) return
+  try { await _sb.from('cch_config').upsert({key, value}) } catch(e) { console.warn('[CCH] config save failed', e) }
+}
+
+async function _sbLoadConfig() {
+  if (!_sbReady) return
+  try {
+    const {data} = await _sb.from('cch_config').select('*')
+    if (!data || data.length===0) {
+      // First time — seed defaults to Supabase
+      await _sbSaveConfig('teams',      DEFAULT_TEAMS)
+      await _sbSaveConfig('users',      DEFAULT_USERS)
+      await _sbSaveConfig('categories', DEFAULT_CATEGORIES)
+      await _sbSaveConfig('recurring',   DEFAULT_RECURRING)
+      return
+    }
+    data.forEach(function(row) {
+      if (row.key==='teams')      localStorage.setItem('cch_teams',      JSON.stringify(row.value))
+      if (row.key==='users')      localStorage.setItem('cch_users',      JSON.stringify(row.value))
+      if (row.key==='categories') localStorage.setItem('cch_categories', JSON.stringify(row.value))
+      if (row.key==='recurring')   localStorage.setItem('cch_recurring',   JSON.stringify(row.value))
+    })
+  } catch(e) { console.warn('[CCH] config load failed', e) }
+}
+
+function checkRecurringTasks() {
+  var templates = getRecurring()
+  var now = new Date()
+  var today = now.toDateString()
+  var changed = false
+
+  templates.forEach(function(tmpl) {
+    if (!tmpl.active) return
+
+    var shouldCreate = false
+    var lastCreated = tmpl.last_created ? new Date(tmpl.last_created) : null
+
+    // Check if already created today (for daily) or this week/month
+    if (tmpl.interval === 'daily') {
+      shouldCreate = !lastCreated || lastCreated.toDateString() !== today
+    } else if (tmpl.interval === 'weekly') {
+      var dayMatch = now.getDay() === (tmpl.day_of_week || 1)
+      var weekAgo = new Date(now - 6*24*3600000)
+      shouldCreate = dayMatch && (!lastCreated || lastCreated < weekAgo)
+    } else if (tmpl.interval === 'monthly') {
+      var dateMatch = now.getDate() === (tmpl.day_of_month || 1)
+      var monthAgo = new Date(now)
+      monthAgo.setMonth(monthAgo.getMonth() - 1)
+      shouldCreate = dateMatch && (!lastCreated || lastCreated < monthAgo)
+    }
+
+    if (!shouldCreate) return
+
+    // Create ticket from template
+    var due = new Date(now.getTime() + (tmpl.due_hours || 4) * 3600000)
+    var pad = function(n){ return n<10?'0'+n:n }
+    var dueStr = due.getFullYear()+'-'+pad(due.getMonth()+1)+'-'+pad(due.getDate())+'T'+pad(due.getHours())+':'+pad(due.getMinutes())
+
+    var task = {
+      id:                'tkt-' + Date.now() + '-' + Math.random().toString(36).slice(2,6),
+      title:             '[Auto] ' + tmpl.title,
+      description:       tmpl.description || '',
+      category:          tmpl.category || '',
+      priority:          tmpl.priority || 'normal',
+      status:            'open',
+      assigned_team_id:  tmpl.assigned_team_id || '',
+      assigned_person_id:null,
+      created_by_team_id:'team-admin',
+      created_by:        'system',
+      created_by_name:   'Auto (Recurring)',
+      due_date:          dueStr,
+      reminder_at:       null,
+      reminder_sent:     false,
+      closed_at:         null,
+      created_at:        now.toISOString(),
+      comments:          [],
+      history:           [{action:'Auto-created from recurring template: '+tmpl.title, by:'System', at:now.toISOString()}]
+    }
+
+    var tasks = getTasks()
+    tasks.push(task)
+    saveTasks(tasks)
+    addActivity('Auto-created recurring ticket "' + tmpl.title + '"')
+
+    // Update last_created
+    tmpl.last_created = now.toISOString()
+    changed = true
+
+    showToast('Recurring ticket created: ' + tmpl.title, 'info')
+    console.log('[CCH] Recurring ticket created:', tmpl.title)
+  })
+
+  if (changed) saveRecurring(templates)
+}
+
+function subscribeRealtime() {
+  if (!_sbReady) return
+  _sb.channel('cch-realtime')
+    .on('postgres_changes', {event:'*', schema:'public', table:'cch_tickets'}, async ()=>{
+      await syncFromSupabase()
+      if      (currentView==='tasks')     renderTasksList()
+      else if (currentView==='mytasks')   renderMyTasks()
+      else if (currentView==='dashboard') renderDashboard()
+    })
+    .subscribe()
+  console.log('[CCH] Realtime subscribed')
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  DATA
+// ══════════════════════════════════════════════════════════════════════════════
+// ── TEAM TYPES: 'external' = call centers that RAISE tickets | 'internal' = teams that HANDLE tickets ──
+const DEFAULT_USERS = [
+  // Admin
+  { id:'u-admin',     email:'admin@hub.com',           password:'admin123', name:'Admin',            role:'admin',    teamId:'team-admin'    },
+  // External — Call Centers (raise tickets)
+  { id:'u-cc1a',      email:'agent1@cc1.com',          password:'pass123',  name:'CC1 Agent',        role:'agent',    teamId:'team-cc1'      },
+  { id:'u-cc1b',      email:'manager1@cc1.com',        password:'pass123',  name:'CC1 Manager',      role:'manager',  teamId:'team-cc1'      },
+  { id:'u-cc2a',      email:'agent2@cc2.com',          password:'pass123',  name:'CC2 Agent',        role:'agent',    teamId:'team-cc2'      },
+  { id:'u-cc2b',      email:'manager2@cc2.com',        password:'pass123',  name:'CC2 Manager',      role:'manager',  teamId:'team-cc2'      },
+  // Internal — handle tickets
+  { id:'u-training',  email:'training@internal.com',   password:'pass123',  name:'Training Lead',    role:'agent',    teamId:'team-training' },
+  { id:'u-qa',        email:'qa@internal.com',         password:'pass123',  name:'QA Lead',          role:'agent',    teamId:'team-qa'       },
+  { id:'u-ops',       email:'ops@internal.com',        password:'pass123',  name:'Ops Lead',         role:'agent',    teamId:'team-ops'      },
+]
+
+const DEFAULT_TEAMS = [
+  { id:'team-admin',    name:'Admin',         color:'#3b82f6', type:'admin'    },
+  // External (raise tickets)
+  { id:'team-cc1',      name:'Call Center 1', color:'#10b981', type:'external' },
+  { id:'team-cc2',      name:'Call Center 2', color:'#f59e0b', type:'external' },
+  // Internal (handle tickets)
+  { id:'team-training', name:'Training',      color:'#8b5cf6', type:'internal' },
+  { id:'team-qa',       name:'QA',            color:'#ec4899', type:'internal' },
+  { id:'team-ops',      name:'Ops',           color:'#14b8a6', type:'internal' },
+]
+
+const DEFAULT_CATEGORIES = [
+  { id:'cat-1', name:'Training Query',       sla:24, defaultTeam:'team-training' },
+  { id:'cat-2', name:'QA / Quality Issue',   sla:24, defaultTeam:'team-qa'       },
+  { id:'cat-3', name:'Operations Issue',     sla:48, defaultTeam:'team-ops'      },
+  { id:'cat-4', name:'System / Tech Issue',  sla:12, defaultTeam:'team-ops'      },
+  { id:'cat-5', name:'Process Query',        sla:48, defaultTeam:'team-training' },
+  { id:'cat-6', name:'Compliance / Audit',   sla:24, defaultTeam:'team-qa'       },
+  { id:'cat-7', name:'Escalation',           sla:8,  defaultTeam:'team-ops'      },
+]
+
+const DEFAULT_RECURRING = [
+  { id:'rec-1', title:'Weekly Roster',         description:'<p>Please prepare and share the <b>weekly roster</b> for all agents.</p>', category:'Operations Issue', priority:'high',   assigned_team_id:'team-ops',      interval:'weekly',  day_of_week:1,  day_of_month:1,  due_hours:4,  active:true, last_created:null },
+  { id:'rec-2', title:'RAG Report',            description:'<p>Prepare and submit the <b>RAG status report</b> for this week.</p>',    category:'QA / Quality Issue', priority:'high',   assigned_team_id:'team-qa',       interval:'weekly',  day_of_week:5,  day_of_month:1,  due_hours:4,  active:true, last_created:null },
+  { id:'rec-3', title:'Monthly Compliance Audit', description:'<p>Conduct monthly <b>compliance audit</b> and submit findings.</p>',  category:'Compliance / Audit', priority:'urgent', assigned_team_id:'team-qa',       interval:'monthly', day_of_week:1,  day_of_month:1,  due_hours:24, active:true, last_created:null },
+]
+
+function getRecurring()  { try { return JSON.parse(localStorage.getItem('cch_recurring') || 'null') || DEFAULT_RECURRING } catch { return DEFAULT_RECURRING } }
+function saveRecurring(r){ localStorage.setItem('cch_recurring', JSON.stringify(r)); _sbSaveConfig('recurring', r) }
+
+function getUsers()      { try { return JSON.parse(localStorage.getItem('cch_users')      || 'null') || DEFAULT_USERS      } catch { return DEFAULT_USERS      } }
+function saveUsers(u)    { localStorage.setItem('cch_users',      JSON.stringify(u)); _sbSaveConfig('users', u) }
+function getTeams()      { try { return JSON.parse(localStorage.getItem('cch_teams')      || 'null') || DEFAULT_TEAMS      } catch { return DEFAULT_TEAMS      } }
+function saveTeams(t)    { localStorage.setItem('cch_teams',      JSON.stringify(t)); _sbSaveConfig('teams', t) }
+function getCategories() { try { return JSON.parse(localStorage.getItem('cch_categories') || 'null') || DEFAULT_CATEGORIES } catch { return DEFAULT_CATEGORIES } }
+function saveCategories(c){ localStorage.setItem('cch_categories', JSON.stringify(c)); _sbSaveConfig('categories', c) }
+function getTasks()      { try { return JSON.parse(localStorage.getItem('cch_tasks')      || '[]')                         } catch { return []                  } }
+function saveTasks(t)    {
+  localStorage.setItem('cch_tasks', JSON.stringify(t))
+  if (_useBackend) fetch(API+'/tasks',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tasks:t})}).catch(()=>{})
+  _sbUpsertTickets(t)
+}
+function getActivity()   { try { return JSON.parse(localStorage.getItem('cch_activity')   || '[]')                         } catch { return []                  } }
+function saveActivity(a) {
+  localStorage.setItem('cch_activity', JSON.stringify(a))
+  if (_useBackend) fetch(API+'/activity',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({activity:a})}).catch(()=>{})
+}
+
+// Aliases
+Object.defineProperty(window,'DEMO_USERS',{get:getUsers})
+Object.defineProperty(window,'TEAMS',     {get:getTeams})
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  BACKEND
+// ══════════════════════════════════════════════════════════════════════════════
+const API = 'http://localhost:3001/api'
+let _useBackend = false
+async function checkBackend() {
+  try { await fetch(API+'/ping',{signal:AbortSignal.timeout(2000)}); _useBackend=true } catch { _useBackend=false }
+}
+async function syncFromBackend() {
+  if (!_useBackend) return
+  try {
+    const data = await (await fetch(API+'/data')).json()
+    if (data.tasks?.length)    localStorage.setItem('cch_tasks',    JSON.stringify(data.tasks))
+    if (data.activity?.length) localStorage.setItem('cch_activity', JSON.stringify(data.activity))
+  } catch {}
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  STATE
+// ══════════════════════════════════════════════════════════════════════════════
+let currentUser = null
+let currentView = 'tasks'
+let currentAdminTab = 'teams'
+let _sortCol = 'created_at'
+let _sortDir = 'desc'
+let _quickFilter = ''
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  HELPERS
+// ══════════════════════════════════════════════════════════════════════════════
+function uid()   { return 'task-' + Date.now() + '-' + Math.random().toString(36).slice(2,6) }
+
+function nextTicketId() {
+  const tasks = getTasks()
+  const nums  = tasks.map(t=>{ const m=(t.id||'').match(/TKT-(\d+)/); return m?parseInt(m[1]):0 })
+  const max   = nums.length ? Math.max(0,...nums) : 0
+  return 'TKT-' + String(max+1).padStart(3,'0')
+}
+
+function statusLabel(s) { return {open:'Open',acknowledged:'Acknowledged',in_progress:'In Progress',pending_review:'Pending Review',closed:'Closed'}[s]||s }
+function priorityLabel(p){ return {urgent:'Urgent',high:'High',normal:'Normal',low:'Low'}[p]||p }
+function statusBadge(s)  { return `<span class="badge status-${s}">${statusLabel(s)}</span>` }
+function priorityBadge(p){ return `<span class="badge priority-${p}">${priorityLabel(p)}</span>` }
+
+function fmtDate(d)  { if(!d) return '—'; var dt=new Date(d); var base=dt.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}); return (d+'').includes('T') ? base+' '+dt.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}) : base }
+function fmtDT(d)    { if(!d) return ''; return new Date(d).toLocaleDateString('en-GB',{day:'2-digit',month:'short'})+' '+new Date(d).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}) }
+function isOverdue(t){ return t.due_date && t.status!=='closed' && new Date(t.due_date)<new Date() }
+
+function getTeamName(id){ const t=TEAMS.find(t=>t.id===id); return t?t.name:id||'—' }
+function getUserName(id){ const u=DEMO_USERS.find(u=>u.id===id); return u?u.name:id||'—' }
+function getTeamColor(id){ const t=TEAMS.find(t=>t.id===id); return t?t.color:'#6b7280' }
+
+function getCatSLA(catName) {
+  const cats = getCategories()
+  const c = cats.find(c=>c.name===catName)
+  return c ? c.sla : 48
+}
+
+function getSLAInfo(task) {
+  if (!task.created_at) return null
+  const slaHrs  = getCatSLA(task.category)
+  const created = new Date(task.created_at)
+  const deadline= new Date(created.getTime() + slaHrs*60*60*1000)
+  const now     = new Date()
+  const hoursLeft = (deadline - now) / 3600000
+  if (hoursLeft < 0)  return { label: `Breached ${Math.abs(Math.round(hoursLeft))}h ago`, cls:'sla-breach' }
+  if (hoursLeft < 4)  return { label: `${Math.round(hoursLeft)}h left`,                  cls:'sla-warn'   }
+  if (hoursLeft < 24) return { label: `${Math.round(hoursLeft)}h left`,                  cls:'sla-ok'     }
+  return { label: `${Math.round(hoursLeft/24)}d left`, cls:'sla-ok' }
+}
+
+function slaBadge(task) {
+  if (task.status==='closed') return ''
+  const s = getSLAInfo(task)
+  if (!s) return ''
+  return `<span class="badge ${s.cls}" style="font-size:10px">${s.label}</span>`
+}
+
+function showToast(msg, type='success') {
+  const el = document.createElement('div')
+  el.className = `toast-item toast-${type}`
+  el.textContent = msg
+  document.getElementById('toast-container').appendChild(el)
+  setTimeout(()=>el.remove(), 3500)
+}
+
+function addActivity(msg) {
+  const log = getActivity()
+  const entry = {msg, who:currentUser?.name||'System', time:new Date().toISOString()}
+  log.unshift(entry)
+  if (log.length>80) log.length=80
+  saveActivity(log)
+  _sbInsertActivity(entry)
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  NOTIFICATIONS
+// ══════════════════════════════════════════════════════════════════════════════
+function getNotifsKey()    { return 'cch_notifs_' + (currentUser?.id||'') }
+function getNotifs()       { try { return JSON.parse(localStorage.getItem(getNotifsKey())||'[]') } catch { return [] } }
+function saveNotifs(n)     { localStorage.setItem(getNotifsKey(), JSON.stringify(n)) }
+
+function pushNotif(msg, taskId, taskTitle) {
+  // Push to all users who should see this (simplified: push to all users, each user reads their own)
+  const users = getUsers()
+  users.forEach(u => {
+    const key = 'cch_notifs_' + u.id
+    try {
+      const arr = JSON.parse(localStorage.getItem(key)||'[]')
+      arr.unshift({ id:'n-'+Date.now()+'-'+Math.random().toString(36).slice(2,5), msg, taskId, taskTitle, at:new Date().toISOString(), read:false })
+      if (arr.length>50) arr.length=50
+      localStorage.setItem(key, JSON.stringify(arr))
+    } catch {}
+  })
+  updateBell()
+}
+
+function updateBell() {
+  const unread = getNotifs().filter(n=>!n.read).length
+  const badge  = document.getElementById('bell-badge')
+  if (!badge) return
+  if (unread>0) { badge.textContent=unread>9?'9+':unread; badge.classList.remove('hidden') }
+  else badge.classList.add('hidden')
+}
+
+function toggleNotifPanel(e) {
+  e.stopPropagation()
+  const panel = document.getElementById('notif-panel')
+  panel.classList.toggle('open')
+  if (panel.classList.contains('open')) renderNotifList()
+}
+
+function renderNotifList() {
+  const notifs = getNotifs()
+  const el = document.getElementById('notif-list')
+  if (notifs.length===0) {
+    el.innerHTML='<p class="text-center text-slate-400 text-sm py-8">No notifications</p>'
+    return
+  }
+  el.innerHTML = notifs.slice(0,20).map(n=>`
+    <div class="notif-item ${n.read?'':'unread'}" onclick="notifClick('${n.taskId}','${n.id}')">
+      <p class="text-sm text-slate-700 font-medium">${n.taskTitle||'Task Update'}</p>
+      <p class="text-xs text-slate-500 mt-0.5">${n.msg}</p>
+      <p class="text-xs text-slate-400 mt-0.5">${fmtDT(n.at)}</p>
+    </div>`).join('')
+}
+
+function notifClick(taskId, notifId) {
+  // Mark read
+  const notifs = getNotifs()
+  const n = notifs.find(x=>x.id===notifId)
+  if (n) { n.read=true; saveNotifs(notifs) }
+  updateBell()
+  document.getElementById('notif-panel').classList.remove('open')
+  if (taskId) openSlideOver(taskId)
+}
+
+function markAllRead() {
+  const notifs = getNotifs().map(n=>({...n,read:true}))
+  saveNotifs(notifs)
+  updateBell()
+  renderNotifList()
+}
+
+// Close notif panel when clicking elsewhere
+document.addEventListener('click', e=>{
+  const panel = document.getElementById('notif-panel')
+  if (panel && !panel.contains(e.target)) panel.classList.remove('open')
+})
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  AUTH
+// ══════════════════════════════════════════════════════════════════════════════
+function fillDemo(e,p){ document.getElementById('login-email').value=e; document.getElementById('login-password').value=p }
+
+function doLogin() {
+  const email = document.getElementById('login-email').value.trim().toLowerCase()
+  const pass  = document.getElementById('login-password').value
+  const errEl = document.getElementById('login-error')
+  const user  = DEMO_USERS.find(u=>u.email===email&&u.password===pass)
+  if (!user) { errEl.textContent='Invalid email or password'; errEl.classList.remove('hidden'); return }
+  errEl.classList.add('hidden')
+  currentUser = user
+  localStorage.setItem('cch_session', JSON.stringify(user))
+  startReminderScheduler()
+  if (_sbReady) {
+    syncFromSupabase().then(()=>{ subscribeRealtime(); startApp() })
+  } else {
+    startApp()
+  }
+}
+
+function doLogout() {
+  currentUser = null
+  localStorage.removeItem('cch_session')
+  closeSlideOver()
+  document.getElementById('page-app').style.display = 'none'
+  document.getElementById('page-login').style.display = 'flex'
+  document.getElementById('login-email').value = ''
+  document.getElementById('login-password').value = ''
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  BOOT
+// ══════════════════════════════════════════════════════════════════════════════
+function startApp() {
+  document.getElementById('page-login').style.display = 'none'
+  document.getElementById('page-app').style.display   = 'block'
+
+  document.getElementById('sidebar-name').textContent = currentUser.name
+  document.getElementById('sidebar-role').textContent = currentUser.role
+  document.getElementById('sidebar-avatar').textContent = currentUser.name.charAt(0).toUpperCase()
+  const headerAv = document.getElementById('header-avatar')
+  if (headerAv) { headerAv.textContent = currentUser.name.charAt(0).toUpperCase(); headerAv.title = currentUser.name }
+  const team = TEAMS.find(t=>t.id===currentUser.teamId)
+  document.getElementById('sidebar-team').textContent = team?.name||''
+
+  if (currentUser.role==='admin') document.getElementById('nav-admin').classList.remove('hidden')
+
+  // Personalize nav label
+  const myLabel = document.getElementById('mytasks-nav-label')
+  if (myLabel) myLabel.textContent = isExternalUser() ? 'Tickets We Raised' : 'My Tasks'
+
+  updateBell()
+  navigate('tasks')
+  // Deep link: open ticket from email link (e.g. app.html#TKT-022)
+  const hashId = window.location.hash.replace('#','').trim()
+  if (hashId && hashId.startsWith('TKT-')) {
+    setTimeout(() => openSlideOver(hashId), 400)
+  }
+}
+
+function populateBoardTeamFilter() {
+  const sel = document.getElementById('board-team-filter')
+  if (!sel) return
+  sel.innerHTML = '<option value="">All Teams</option>' + getTeams().map(t=>`<option value="${t.id}">${t.name}</option>`).join('')
+  if (currentUser.role==='admin') sel.value = ''
+  // else default handled in renderBoard by smart filter
+}
+
+// Is the current user from an external call center (they RAISE tickets)?
+function isExternalUser() {
+  const team = getTeams().find(t=>t.id===currentUser.teamId)
+  return team?.type==='external'
+}
+// Is the current user from an internal team (they HANDLE tickets)?
+function isInternalUser() {
+  const team = getTeams().find(t=>t.id===currentUser.teamId)
+  return team?.type==='internal'
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  NAVIGATION
+// ══════════════════════════════════════════════════════════════════════════════
+const VIEW_TITLES = { tasks:'☰ All Tickets', mytasks:'🎯 My Tickets', dashboard:'📊 Dashboard', admin:'⚙ Admin' }
+
+function navigate(view) {
+  currentView = view
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'))
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'))
+  const vEl = document.getElementById('view-'+view)
+  if (vEl) vEl.classList.add('active')
+  const nEl = document.getElementById('nav-'+view)
+  if (nEl) nEl.classList.add('active')
+  document.getElementById('header-title').textContent = VIEW_TITLES[view]||view
+
+  if (view==='tasks')     { populateTaskFilters(); renderTasksList() }
+  else if (view==='mytasks')   renderMyTasks()
+  else if (view==='dashboard') renderDashboard()
+  else if (view==='admin')     renderAdmin()
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  SLIDE-OVER (Task Detail)
+// ══════════════════════════════════════════════════════════════════════════════
+let slideOverTaskId = null
+
+function openSlideOver(id) {
+  slideOverTaskId = id
+  document.getElementById('slideover-overlay').classList.add('open')
+  document.getElementById('slideover-panel').classList.add('open')
+  renderSlideOver(id)
+}
+
+function closeSlideOver() {
+  document.getElementById('slideover-overlay').classList.remove('open')
+  document.getElementById('slideover-panel').classList.remove('open')
+  slideOverTaskId = null
+}
+
+function renderSlideOver(id) {
+  const task = getTasks().find(t=>t.id===id)
+  if (!task) { document.getElementById('slideover-content').innerHTML='<p class="p-6 text-red-500">Task not found</p>'; return }
+
+  const sla     = getSLAInfo(task)
+  const overdue = isOverdue(task)
+  const canEdit = currentUser.role==='admin'||currentUser.role==='manager'
+  const statuses = ['open','acknowledged','in_progress','pending_review','closed']
+  const assignee = task.assigned_person_id ? DEMO_USERS.find(u=>u.id===task.assigned_person_id) : null
+  const teamMembers = DEMO_USERS.filter(u=>u.teamId===task.assigned_team_id)
+
+  document.getElementById('slideover-content').innerHTML = `
+    <!-- Header -->
+    <div class="flex items-start justify-between p-5 pb-4 border-b border-slate-200 sticky top-0 bg-white z-10">
+      <div class="flex-1 pr-3">
+        <p class="text-xs text-slate-400 font-mono mb-1">${task.id}</p>
+        <h2 class="text-base font-bold text-slate-900 leading-snug">${task.title}</h2>
+      </div>
+      <button onclick="closeSlideOver()" class="text-slate-400 hover:text-slate-700 flex-shrink-0 mt-1">
+        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+
+    <div class="p-5 space-y-5">
+      <!-- Status + Priority row -->
+      <div class="flex flex-wrap gap-3 items-center">
+        ${canEdit
+          ? `<select class="form-input w-auto text-sm font-medium" style="min-width:160px" onchange="updateStatus('${task.id}',this.value)">
+               ${statuses.map(s=>`<option value="${s}" ${task.status===s?'selected':''}>${statusLabel(s)}</option>`).join('')}
+             </select>`
+          : statusBadge(task.status)}
+        ${priorityBadge(task.priority)}
+        ${sla&&task.status!=='closed'?`<span class="badge ${sla.cls}">${sla.label} SLA</span>`:''}
+        ${overdue?`<span class="badge priority-urgent">⚠ Overdue</span>`:''}
+      </div>
+
+      <!-- Info grid -->
+      <div class="grid grid-cols-2 gap-3 text-sm">
+        <div class="bg-slate-50 rounded-lg p-3">
+          <p class="text-xs text-slate-400 uppercase tracking-wide font-semibold mb-1">Assigned Team</p>
+          <div class="flex items-center gap-1.5">
+            <div class="w-3 h-3 rounded-full" style="background:${getTeamColor(task.assigned_team_id)}"></div>
+            <span class="font-medium text-slate-800">${getTeamName(task.assigned_team_id)}</span>
+          </div>
+        </div>
+        <div class="bg-slate-50 rounded-lg p-3">
+          <p class="text-xs text-slate-400 uppercase tracking-wide font-semibold mb-1">Assigned To</p>
+          <div class="flex items-center gap-1.5">
+            ${canEdit
+              ? `<select class="form-input text-xs p-1" style="height:28px" onchange="updateAssignee('${task.id}',this.value)">
+                   <option value="">Unassigned</option>
+                   ${teamMembers.map(u=>`<option value="${u.id}" ${task.assigned_person_id===u.id?'selected':''}>${u.name}</option>`).join('')}
+                 </select>`
+              : `<span class="font-medium text-slate-800">${assignee?assignee.name:'Unassigned'}</span>`}
+          </div>
+        </div>
+        <div class="bg-slate-50 rounded-lg p-3">
+          <p class="text-xs text-slate-400 uppercase tracking-wide font-semibold mb-1">Due Date</p>
+          <span class="font-medium ${overdue?'text-red-600':'text-slate-800'}">${fmtDate(task.due_date)}</span>
+        </div>
+        <div class="bg-slate-50 rounded-lg p-3">
+          <p class="text-xs text-slate-400 uppercase tracking-wide font-semibold mb-1">Category</p>
+          <span class="font-medium text-slate-800">${task.category||'—'}</span>
+        </div>
+        <div class="bg-slate-50 rounded-lg p-3">
+          <p class="text-xs text-slate-400 uppercase tracking-wide font-semibold mb-1">LOB</p>
+          <span class="font-medium text-slate-800">${task.lob||'—'}</span>
+        </div>
+        <div class="bg-slate-50 rounded-lg p-3">
+          <p class="text-xs text-slate-400 uppercase tracking-wide font-semibold mb-1">Raised By</p>
+          <span class="font-medium text-slate-800">${task.created_by_name||'—'}</span>
+          ${task.created_by_team_id?`<span class="ml-1 badge bg-slate-200 text-slate-600" style="font-size:10px">${getTeamName(task.created_by_team_id)}</span>`:''}
+        </div>
+        <div class="bg-slate-50 rounded-lg p-3">
+          <p class="text-xs text-slate-400 uppercase tracking-wide font-semibold mb-1">Raised At</p>
+          <span class="font-medium text-slate-800">${fmtDT(task.created_at)}</span>
+        </div>
+      </div>
+
+      <!-- Description -->
+      ${task.description?`
+      <div>
+        <p class="text-xs text-slate-400 uppercase tracking-wide font-semibold mb-2">Description</p>
+        <div class="bg-slate-50 rounded-lg p-3 text-sm text-slate-700 desc-body">${task.description}</div>
+      </div>`:''}
+
+      <!-- Comments -->
+      <div>
+        <p class="text-xs text-slate-400 uppercase tracking-wide font-semibold mb-3">Comments (${(task.comments||[]).length})</p>
+        <div class="space-y-3 mb-3" id="so-comments">
+          ${(task.comments||[]).length===0
+            ?'<p class="text-slate-400 text-sm">No comments yet</p>'
+            :(task.comments||[]).map(c=>`
+              <div class="bg-slate-50 rounded-lg p-3">
+                <div class="flex justify-between text-xs text-slate-400 mb-1">
+                  <span class="font-semibold text-slate-700">${c.by}</span>
+                  <span>${fmtDT(c.at)}</span>
+                </div>
+                <p class="text-sm text-slate-700">${c.text}</p>
+              </div>`).join('')}
+        </div>
+        <div class="flex gap-2">
+          <textarea id="so-comment-input" class="form-input flex-1 text-sm" rows="2" placeholder="Add a comment..."></textarea>
+          <button onclick="addCommentSO('${task.id}')" class="btn btn-primary btn-sm self-end">Post</button>
+        </div>
+      </div>
+
+      <!-- History -->
+      <div>
+        <p class="text-xs text-slate-400 uppercase tracking-wide font-semibold mb-3">Activity</p>
+        <div>
+          ${(task.history||[]).slice().reverse().map(h=>`
+            <div class="timeline-item">
+              <div class="timeline-dot"></div>
+              <p class="text-sm text-slate-700">${h.action}</p>
+              <p class="text-xs text-slate-400">${h.by} · ${fmtDT(h.at)}</p>
+            </div>`).join('')}
+        </div>
+      </div>
+
+      <!-- Delete (admin only) -->
+      ${currentUser.role==='admin'?`
+      <div class="pt-2 border-t border-slate-100">
+        <button onclick="deleteTask('${task.id}')" class="btn btn-danger btn-sm">Delete Ticket</button>
+      </div>`:''}
+    </div>
+  `
+}
+
+function updateStatus(id, newStatus) {
+  const tasks = getTasks()
+  const task  = tasks.find(t=>t.id===id)
+  if (!task||task.status===newStatus) return
+  const old = task.status
+  task.status = newStatus
+  if (newStatus==='closed') task.closed_at = new Date().toISOString()
+  task.history = task.history||[]
+  task.history.push({action:`Status changed from ${statusLabel(old)} to ${statusLabel(newStatus)}`,by:currentUser.name,at:new Date().toISOString()})
+  saveTasks(tasks)
+  addActivity(`updated "${task.title}" → ${statusLabel(newStatus)}`)
+  pushNotif(`Status changed to "${statusLabel(newStatus)}" by ${currentUser.name}`, id, task.title)
+  showToast('Status updated!')
+  renderSlideOver(id)
+  if (currentView==='tasks') renderTasksList()
+  else if (currentView==='mytasks') renderMyTasks()
+}
+
+function updateAssignee(id, userId) {
+  const tasks = getTasks()
+  const task  = tasks.find(t=>t.id===id)
+  if (!task) return
+  task.assigned_person_id = userId||null
+  task.history = task.history||[]
+  task.history.push({action:`Assigned to ${userId?getUserName(userId):'Unassigned'}`,by:currentUser.name,at:new Date().toISOString()})
+  saveTasks(tasks)
+  showToast('Assignee updated!')
+}
+
+function addCommentSO(id) {
+  const text = document.getElementById('so-comment-input')?.value.trim()
+  if (!text) return
+  const tasks = getTasks()
+  const task  = tasks.find(t=>t.id===id)
+  if (!task) return
+  task.comments = task.comments||[]
+  task.comments.push({by:currentUser.name, at:new Date().toISOString(), text})
+  task.history  = task.history||[]
+  task.history.push({action:'Comment added',by:currentUser.name,at:new Date().toISOString()})
+  saveTasks(tasks)
+  addActivity(`commented on "${task.title}"`)
+  pushNotif(`${currentUser.name} commented: "${text.slice(0,60)}${text.length>60?'..':''}"`, id, task.title)
+  showToast('Comment added!')
+  renderSlideOver(id)
+}
+
+function deleteTask(id) {
+  if (!confirm('Delete this ticket? This cannot be undone.')) return
+  saveTasks(getTasks().filter(t=>t.id!==id))
+  _sbDeleteTicket(id)
+  addActivity('deleted a ticket')
+  showToast('Ticket deleted','error')
+  closeSlideOver()
+  renderTasksList()
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+function statusSelectStyle(s) {
+  var m = {open:'background:#DEEBFF;color:#0747A6',acknowledged:'background:#EAE6FF;color:#403294',in_progress:'background:#E3FCEF;color:#006644',pending_review:'background:#FFFAE6;color:#172B4D',closed:'background:#DFE1E6;color:#42526E'}
+  return m[s]||''
+}
+function quickChangeStatus(id, newStatus, e) {
+  e.stopPropagation()
+  var tasks = getTasks(), task = tasks.find(function(t){return t.id===id})
+  if (!task || task.status===newStatus) return
+  var old = task.status
+  task.status = newStatus
+  if (newStatus==='closed') task.closed_at = new Date().toISOString()
+  task.history = task.history||[]
+  task.history.push({action:'Status changed from '+statusLabel(old)+' to '+statusLabel(newStatus),by:currentUser.name,at:new Date().toISOString()})
+  saveTasks(tasks)
+  addActivity('updated "'+task.title+'" to '+statusLabel(newStatus))
+  pushNotif('Status changed to "'+statusLabel(newStatus)+'" by '+currentUser.name, id, task.title)
+  showToast('Status updated to '+statusLabel(newStatus))
+  if (currentView==='tasks') renderTasksList()
+  else if (currentView==='mytasks') renderMyTasks()
+  if (slideOverTaskId===id) renderSlideOver(id)
+}
+function setQuickFilter(f) {
+  _quickFilter = _quickFilter===f ? '' : f
+  ;['overdue','today','week'].forEach(function(k){
+    var btn = document.getElementById('qf-'+k)
+    if (btn) btn.classList.toggle('active', _quickFilter===k)
+  })
+  renderTasksList()
+}
+function sortTasks(col) {
+  if (_sortCol===col) _sortDir = _sortDir==='asc'?'desc':'asc'
+  else { _sortCol=col; _sortDir='asc' }
+  renderTasksList()
+}
+function updateSortArrows() {
+  ;['title','status','priority','team','raised_by','due_date'].forEach(function(col){
+    var el = document.getElementById('sa-'+col)
+    if (!el) return
+    if (_sortCol===col) { el.innerHTML=_sortDir==='asc'?'&uarr;':'&darr;'; el.classList.add('on') }
+    else { el.innerHTML='&#8597;'; el.classList.remove('on') }
+  })
+}
+function applySort(tasks) {
+  var dir = _sortDir==='asc' ? 1 : -1
+  var sO = {open:0,acknowledged:1,in_progress:2,pending_review:3,closed:4}
+  var pO = {urgent:0,high:1,normal:2,low:3}
+  return tasks.slice().sort(function(a,b){
+    var av,bv
+    if      (_sortCol==='title')    { av=a.title.toLowerCase(); bv=b.title.toLowerCase() }
+    else if (_sortCol==='status')   { av=sO[a.status]!=null?sO[a.status]:99; bv=sO[b.status]!=null?sO[b.status]:99 }
+    else if (_sortCol==='priority') { av=pO[a.priority]!=null?pO[a.priority]:99; bv=pO[b.priority]!=null?pO[b.priority]:99 }
+    else if (_sortCol==='team')     { av=getTeamName(a.assigned_team_id).toLowerCase(); bv=getTeamName(b.assigned_team_id).toLowerCase() }
+    else if (_sortCol==='raised_by'){ av=getTeamName(a.created_by_team_id).toLowerCase(); bv=getTeamName(b.created_by_team_id).toLowerCase() }
+    else if (_sortCol==='due_date') { av=a.due_date?new Date(a.due_date):new Date('9999'); bv=b.due_date?new Date(b.due_date):new Date('9999') }
+    else                            { av=new Date(a.created_at); bv=new Date(b.created_at) }
+    if(av<bv)return -dir; if(av>bv)return dir; return 0
+  })
+}
+
+//  ALL TASKS LIST
+// ══════════════════════════════════════════════════════════════════════════════
+function renderTasksList() {
+  var tasks = getTasks()
+  var search      = (document.getElementById('filter-search')?document.getElementById('filter-search').value:'').toLowerCase()
+  var status      = document.getElementById('filter-status')?document.getElementById('filter-status').value:''
+  var prio        = document.getElementById('filter-priority')?document.getElementById('filter-priority').value:''
+  var teamF       = document.getElementById('filter-team')?document.getElementById('filter-team').value:''
+  var agentF      = document.getElementById('filter-agent')?document.getElementById('filter-agent').value:''
+  var raisedTeamF = document.getElementById('filter-raised-by-team')?document.getElementById('filter-raised-by-team').value:''
+  var catF        = document.getElementById('filter-category')?document.getElementById('filter-category').value:''
+
+  if (search)      tasks=tasks.filter(function(t){return (t.title||'').toLowerCase().includes(search)||(t.description||'').toLowerCase().includes(search)||(t.id||'').toLowerCase().includes(search)})
+  if (status)      tasks=tasks.filter(function(t){return t.status===status})
+  if (prio)        tasks=tasks.filter(function(t){return t.priority===prio})
+  if (teamF)       tasks=tasks.filter(function(t){return t.assigned_team_id===teamF})
+  if (agentF)      tasks=tasks.filter(function(t){return t.created_by===agentF})
+  if (raisedTeamF) tasks=tasks.filter(function(t){return t.created_by_team_id===raisedTeamF})
+  if (catF)        tasks=tasks.filter(function(t){return (t.category||'')=== catF})
+  var lobF = document.getElementById('filter-lob')?document.getElementById('filter-lob').value:''
+  if (lobF)        tasks=tasks.filter(function(t){return (t.lob||'')===lobF})
+
+  if (_quickFilter==='overdue') {
+    tasks=tasks.filter(function(t){return isOverdue(t)})
+  } else if (_quickFilter==='today') {
+    var d=new Date(); d.setHours(0,0,0,0); var en=new Date(); en.setHours(23,59,59,999)
+    tasks=tasks.filter(function(t){return t.due_date&&new Date(t.due_date)>=d&&new Date(t.due_date)<=en})
+  } else if (_quickFilter==='week') {
+    var dw=new Date(); dw.setHours(0,0,0,0); var ew=new Date(dw); ew.setDate(dw.getDate()+7)
+    tasks=tasks.filter(function(t){return t.due_date&&new Date(t.due_date)>=dw&&new Date(t.due_date)<=ew})
+  }
+
+  tasks = applySort(tasks)
+  updateSortArrows()
+
+  var tbody = document.getElementById('tasks-tbody')
+  var empty = document.getElementById('tasks-empty')
+  if (tasks.length===0) { tbody.innerHTML=''; empty.classList.remove('hidden'); return }
+  empty.classList.add('hidden')
+  var statusOpts = ['open','acknowledged','in_progress','pending_review','closed']
+  tbody.innerHTML = tasks.map(function(t) {
+    var slaInfo = getSLAInfo(t)
+    var slaHtml = (t.status!=='closed'&&slaInfo) ? '<span class="badge '+slaInfo.cls+'" style="font-size:10px">'+slaInfo.label+'</span>' : ''
+    var opts = statusOpts.map(function(s){return '<option value="'+s+'"'+(t.status===s?' selected':'')+'>'+statusLabel(s)+'</option>'}).join('')
+    return '<tr class="task-row border-b border-slate-100 '+(isOverdue(t)?'overdue-row':'')+'" onclick="openSlideOver(\''+t.id+'\')">'
+      +'<td class="p-3"><div class="font-medium text-slate-800">'+t.title+'</div>'
+      +'<div class="text-xs text-slate-400">'+t.id+' &middot; '+fmtDT(t.created_at)+'</div></td>'
+      +'<td class="p-3">'
+      +(currentUser.role==='admin'||currentUser.role==='manager'
+        ? '<span onclick="event.stopPropagation()"><select style="padding:2px 7px;border-radius:3px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;border:none;cursor:pointer;outline:none;'+statusSelectStyle(t.status)+'" onchange="quickChangeStatus(\''+t.id+'\',this.value,event)">'+opts+'</select></span>'
+        : '<span class="badge status-'+t.status+'">'+statusLabel(t.status)+'</span>')
+      +'</td>'
+      +'<td class="p-3">'+priorityBadge(t.priority)+'</td>'
+      +'<td class="p-3"><span class="text-xs font-semibold px-2 py-0.5 rounded bg-indigo-50 text-indigo-700">'+(t.lob||'—')+'</span></td>'
+      +'<td class="p-3 text-slate-600 text-sm">'+getTeamName(t.assigned_team_id)+'</td>'
+      +'<td class="p-3 text-slate-600 text-sm">'+(getTeamName(t.created_by_team_id)||'&mdash;')+'</td>'
+      +'<td class="p-3 text-sm '+(isOverdue(t)?'text-red-600 font-medium':'text-slate-600')+'">'+fmtDate(t.due_date)+(isOverdue(t)?' &#9888;':'')+'</td>'
+      +'<td class="p-3">'+slaHtml+'</td>'
+      +'</tr>'
+  }).join('')
+}
+
+function populateTaskFilters() {
+  var teams = getTeams()
+  var users = getUsers()
+  var cats  = getCategories()
+  var lobs  = getLOBs()
+  var tasks = getTasks()
+
+  var tf = document.getElementById('filter-team')
+  if (tf) {
+    var prev = tf.value
+    tf.innerHTML = '<option value="">All Teams</option>' + teams.map(function(t){return '<option value="'+t.id+'">'+t.name+'</option>'}).join('')
+    tf.value = prev
+  }
+
+  var rtf = document.getElementById('filter-raised-by-team')
+  if (rtf) {
+    var prev2 = rtf.value
+    rtf.innerHTML = '<option value="">All Raising Teams</option>' + teams.map(function(t){return '<option value="'+t.id+'">'+t.name+'</option>'}).join('')
+    rtf.value = prev2
+  }
+
+  var cf = document.getElementById('filter-category')
+  if (cf) {
+    var prev3 = cf.value
+    cf.innerHTML = '<option value="">All Categories</option>' + cats.map(function(c){return '<option value="'+(c.name||c)+'">'+(c.name||c)+'</option>'}).join('')
+    cf.value = prev3
+  }
+
+  var lf = document.getElementById('filter-lob')
+  if (lf) {
+    var prev4 = lf.value
+    lf.innerHTML = '<option value="">All LOBs</option>' + lobs.map(function(l){return '<option value="'+l+'">'+l+'</option>'}).join('')
+    lf.value = (lobs.includes(prev4) ? prev4 : '')
+  }
+
+  populateAgentFilter()
+}
+
+function populateAgentFilter() {
+  var users = getUsers()
+  var teamF = document.getElementById('filter-team')?document.getElementById('filter-team').value:''
+  var af = document.getElementById('filter-agent')
+  if (!af) return
+  var prev = af.value
+  var filtered = teamF ? users.filter(function(u){return u.teamId===teamF}) : users
+  af.innerHTML = '<option value="">All Agents</option>' + filtered.map(function(u){return '<option value="'+u.id+'">'+u.name+'</option>'}).join('')
+  af.value = (filtered.some(function(u){return u.id===prev}) ? prev : '')
+}
+
+function exportTasksCSV() {
+  const tasks = getTasks()
+  const hdr  = ['ID','Title','Status','Priority','Category','Team','Due Date','Created At']
+  const rows = tasks.map(t=>[t.id,t.title,t.status,t.priority,t.category,getTeamName(t.assigned_team_id),t.due_date,t.created_at])
+  const csv  = [hdr,...rows].map(r=>r.map(v=>`"${(v||'').toString().replace(/"/g,'""')}"`).join(',')).join('\n')
+  const a    = document.createElement('a')
+  a.href     = 'data:text/csv;charset=utf-8,'+encodeURIComponent(csv)
+  a.download = 'tasks_'+new Date().toISOString().slice(0,10)+'.csv'
+  a.click()
+  showToast('CSV exported!')
+}
+
+function backupData() {
+  var backup = {
+    version: 1,
+    exported_at: new Date().toISOString(),
+    exported_by: currentUser ? currentUser.name : 'unknown',
+    tasks:      getTasks(),
+    activity:   getActivity(),
+    teams:      getTeams(),
+    users:      getUsers(),
+    categories: getCategories()
+  }
+  var blob = new Blob([JSON.stringify(backup, null, 2)], {type:'application/json'})
+  var a = document.createElement('a')
+  a.href = URL.createObjectURL(blob)
+  a.download = 'cch_backup_' + new Date().toISOString().slice(0,10) + '.json'
+  a.click()
+  showToast('Backup downloaded!', 'success')
+}
+
+function restoreData(event) {
+  var file = event.target.files[0]
+  if (!file) return
+  var reader = new FileReader()
+  reader.onload = function(e) {
+    try {
+      var data = JSON.parse(e.target.result)
+      if (!data.version || !data.tasks) { showToast('Invalid backup file', 'error'); return }
+      if (!confirm('This will REPLACE all current data with the backup from ' + (data.exported_at||'unknown date') + '.\n\nContinue?')) return
+      if (data.tasks)      localStorage.setItem('cch_tasks',      JSON.stringify(data.tasks))
+      if (data.activity)   localStorage.setItem('cch_activity',   JSON.stringify(data.activity))
+      if (data.teams)      localStorage.setItem('cch_teams',      JSON.stringify(data.teams))
+      if (data.users)      localStorage.setItem('cch_users',      JSON.stringify(data.users))
+      if (data.categories) localStorage.setItem('cch_categories', JSON.stringify(data.categories))
+      showToast('Restore complete! Reloading...', 'success')
+      setTimeout(function(){ location.reload() }, 1500)
+    } catch(err) {
+      showToast('Failed to restore: ' + err.message, 'error')
+    }
+  }
+  reader.readAsText(file)
+  event.target.value = ''
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  MY TASKS
+// ══════════════════════════════════════════════════════════════════════════════
+function renderMyTasks() {
+  const h = document.getElementById('mytasks-heading')
+  if (h) h.textContent = isExternalUser() ? `Tickets Raised by ${getTeamName(currentUser.teamId)}` : 'My Tasks'
+  const allTasks = getTasks()
+  // External CC users: see tickets they raised; Internal: see tickets assigned to their team
+  const tasks = isExternalUser()
+    ? allTasks.filter(t=>t.created_by_team_id===currentUser.teamId)
+    : allTasks.filter(t=>t.assigned_person_id===currentUser.id||t.assigned_team_id===currentUser.teamId)
+  const tbody = document.getElementById('mytasks-tbody')
+  const empty = document.getElementById('mytasks-empty')
+  if (tasks.length===0) { tbody.innerHTML=''; empty.classList.remove('hidden'); return }
+  empty.classList.add('hidden')
+  tbody.innerHTML = tasks.sort((a,b)=>{const ao=isOverdue(a)?0:1,bo=isOverdue(b)?0:1;if(ao!==bo)return ao-bo;return new Date(b.created_at)-new Date(a.created_at)}).map(t=>`
+    <tr class="task-row border-b border-slate-100 ${isOverdue(t)?'overdue-row':''}" onclick="openSlideOver('${t.id}')">
+      <td class="p-3"><div class="font-medium text-slate-800">${t.title}</div><div class="text-xs text-slate-400">${getTeamName(t.assigned_team_id)}</div></td>
+      <td class="p-3">${statusBadge(t.status)}</td>
+      <td class="p-3">${priorityBadge(t.priority)}</td>
+      <td class="p-3 text-sm ${isOverdue(t)?'text-red-600 font-medium':'text-slate-600'}">${fmtDate(t.due_date)}${isOverdue(t)?' ⚠':''}</td>
+      <td class="p-3">${t.status!=='closed'?(()=>{const s=getSLAInfo(t);return s?`<span class="badge ${s.cls}" style="font-size:10px">${s.label}</span>`:''})():''}</td>
+    </tr>`).join('')
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  CREATE TASK MODAL
+// ══════════════════════════════════════════════════════════════════════════════
+function openCreateModal() {
+  const cats         = getCategories()
+  const lobs         = getLOBs()
+  const internalTeams= getTeams().filter(t=>t.type==='internal'||t.type==='admin')
+  const firstCat     = cats[0]
+  const defTeamId    = firstCat?.defaultTeam || internalTeams[0]?.id || ''
+
+  document.getElementById('modal-container').innerHTML = `
+    <div class="modal-overlay" onclick="if(event.target===this)closeModal()">
+      <div class="modal-box" style="width:600px">
+        <div class="flex items-center justify-between mb-5">
+          <h2 class="text-lg font-bold text-slate-900">Raise New Ticket</h2>
+          <button onclick="closeModal()" class="text-slate-400 hover:text-slate-700 text-xl font-bold">&times;</button>
+        </div>
+        <div class="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4 text-sm text-blue-700">
+          ℹ️ Ticket will be routed to the correct internal team (Training / QA / Ops) based on category. You can change it manually.
+        </div>
+        <div class="space-y-4">
+          <div>
+            <label class="form-label">Title <span class="text-red-500">*</span></label>
+            <input id="ct-title" type="text" class="form-input" placeholder="Brief description of the issue"/>
+          </div>
+          <div>
+            <label class="form-label">Description / Body</label>
+            <div class="rich-editor-wrap">
+              <div class="rich-toolbar">
+                <button type="button" onclick="rfmt('bold')" title="Bold"><b>B</b></button>
+                <button type="button" onclick="rfmt('italic')" title="Italic"><i>I</i></button>
+                <button type="button" onclick="rfmt('underline')" title="Underline"><u>U</u></button>
+                <span class="sep">|</span>
+                <button type="button" onclick="rfmt('insertUnorderedList')" title="Bullet list">&#8226; List</button>
+                <button type="button" onclick="rfmt('insertOrderedList')" title="Numbered list">1. List</button>
+                <span class="sep">|</span>
+                <button type="button" onclick="rfmt('formatBlock','h3')" title="Heading">H3</button>
+                <button type="button" onclick="rfmt('formatBlock','p')" title="Normal text">P</button>
+                <span class="sep">|</span>
+                <button type="button" onclick="rInsertTable()" title="Insert table">&#9638; Table</button>
+                <button type="button" onclick="rfmt('insertHorizontalRule')" title="Horizontal rule">&#8212;</button>
+              </div>
+              <div id="ct-desc" class="rich-editor" contenteditable="true" data-placeholder="Write ticket body — supports bold, lists, tables..."></div>
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="form-label">Category <span class="text-red-500">*</span></label>
+              <select id="ct-category" class="form-input" onchange="onCtCategoryChange()">
+                ${cats.map(c=>`<option value="${c.name}" data-team="${c.defaultTeam||''}">${c.name} (SLA: ${c.sla}h)</option>`).join('')}
+              </select>
+            </div>
+            <div>
+              <label class="form-label">Priority <span class="text-red-500">*</span></label>
+              <select id="ct-priority" class="form-input">
+                <option value="normal">Normal</option>
+                <option value="low">Low</option>
+                <option value="high">High</option>
+                <option value="urgent">Urgent</option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <label class="form-label">LOB (Line of Business)</label>
+            <select id="ct-lob" class="form-input">
+              <option value="">-- Select LOB --</option>
+              ${lobs.map(l=>`<option value="${l}">${l}</option>`).join('')}
+            </select>
+          </div>
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="form-label">Route to Internal Team <span class="text-red-500">*</span></label>
+              <select id="ct-team" class="form-input" onchange="onCtTeamChange()">
+                ${internalTeams.map(t=>`<option value="${t.id}" ${t.id===defTeamId?'selected':''}>${t.name}</option>`).join('')}
+              </select>
+            </div>
+            <div>
+              <label class="form-label">Assign To Person <span class="text-slate-400 font-normal">(optional)</span></label>
+              <select id="ct-person" class="form-input"><option value="">-- Unassigned --</option></select>
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="form-label">Due Date &amp; Time <span class="text-red-500">*</span></label>
+              <input id="ct-due" type="datetime-local" class="form-input"/>
+            </div>
+            <div>
+              <label class="form-label">Reminder At <span class="text-slate-400 font-normal">(optional)</span></label>
+              <input id="ct-reminder" type="datetime-local" class="form-input"/>
+            </div>
+          </div>
+          <div class="flex items-center gap-2">
+            <input type="checkbox" id="ct-notify" checked class="w-4 h-4"/>
+            <label for="ct-notify" class="text-sm text-slate-700">Notify team by email on creation</label>
+          </div>
+          <div id="ct-error" class="hidden text-red-600 text-sm bg-red-50 rounded-lg p-3"></div>
+          <div class="flex gap-3 pt-1">
+            <button onclick="submitCreate()" class="btn btn-primary">Create Ticket</button>
+            <button onclick="closeModal()" class="btn btn-secondary">Cancel</button>
+          </div>
+        </div>
+      </div>
+    </div>`
+  onCtTeamChange()
+  // Auto-set due datetime to now + 1 hour
+  var def = new Date(Date.now() + 3600000)
+  var pad = function(n){return n<10?'0'+n:n}
+  var defStr = def.getFullYear()+'-'+pad(def.getMonth()+1)+'-'+pad(def.getDate())+'T'+pad(def.getHours())+':'+pad(def.getMinutes())
+  document.getElementById('ct-due').value = defStr
+}
+
+function onCtCategoryChange() {
+  const sel   = document.getElementById('ct-category')
+  const opt   = sel?.options[sel.selectedIndex]
+  const defTeam = opt?.dataset?.team
+  if (defTeam) {
+    const teamSel = document.getElementById('ct-team')
+    if (teamSel) { teamSel.value = defTeam; onCtTeamChange() }
+  }
+}
+
+function onCtTeamChange() {
+  const teamId  = document.getElementById('ct-team')?.value
+  const members = DEMO_USERS.filter(u=>u.teamId===teamId)
+  const sel     = document.getElementById('ct-person')
+  if (!sel) return
+  sel.innerHTML = '<option value="">-- Unassigned --</option>'+members.map(u=>`<option value="${u.id}">${u.name}</option>`).join('')
+}
+
+function rfmt(cmd, val) {
+  var el = document.getElementById('ct-desc')
+  if (el) el.focus()
+  document.execCommand(cmd, false, val||null)
+}
+function rInsertTable() {
+  var rows = parseInt(prompt('Number of rows (including header):', '3') || '3')
+  var cols = parseInt(prompt('Number of columns:', '3') || '3')
+  if (isNaN(rows)||isNaN(cols)||rows<1||cols<1) return
+  var tbl = '<table><tr>'
+  for (var c=0; c<cols; c++) tbl += '<th contenteditable="true">Header '+(c+1)+'</th>'
+  tbl += '</tr>'
+  for (var r=1; r<rows; r++) {
+    tbl += '<tr>'
+    for (var c=0; c<cols; c++) tbl += '<td contenteditable="true">Cell</td>'
+    tbl += '</tr>'
+  }
+  tbl += '</table>'
+  var el = document.getElementById('ct-desc')
+  if (el) { el.focus(); document.execCommand('insertHTML', false, tbl) }
+}
+
+function submitCreate() {
+  const title    = document.getElementById('ct-title')?.value.trim()
+  const descEl   = document.getElementById('ct-desc')
+  const desc     = descEl ? descEl.innerHTML.trim() : ''
+  const category = document.getElementById('ct-category')?.value
+  const priority = document.getElementById('ct-priority')?.value
+  const teamId   = document.getElementById('ct-team')?.value
+  const personId = document.getElementById('ct-person')?.value
+  const dueDate  = document.getElementById('ct-due')?.value
+  const reminder = document.getElementById('ct-reminder')?.value
+  const notify   = document.getElementById('ct-notify')?.checked
+  const lob      = document.getElementById('ct-lob')?.value || ''
+  const errEl    = document.getElementById('ct-error')
+
+  if (!title)   { errEl.textContent='Title is required';    errEl.classList.remove('hidden'); return }
+  if (!dueDate) { errEl.textContent='Due date is required'; errEl.classList.remove('hidden'); return }
+  errEl.classList.add('hidden')
+
+  const task = {
+    id: nextTicketId(), title, description:desc, category, priority, lob,
+    status:'open',
+    assigned_team_id:teamId, assigned_person_id:personId||null,
+    created_by_team_id: currentUser.teamId,  // which CC raised this
+    due_date:dueDate, reminder_at:reminder||null, reminder_sent:false,
+    created_by:currentUser.id, created_by_name:currentUser.name,
+    created_at:new Date().toISOString(), closed_at:null,
+    comments:[], history:[{action:'Ticket created',by:currentUser.name,at:new Date().toISOString()}],
+  }
+
+  const tasks = getTasks()
+  tasks.push(task)
+  saveTasks(tasks)
+  addActivity(`created ticket "${title}"`)
+  pushNotif(`New ticket assigned: "${title}" [${priority.toUpperCase()}]`, task.id, task.title)
+  showToast('Ticket created!')
+
+  if (notify) sendTicketEmails(task,'new')
+
+  closeModal()
+  renderTasksList()
+}
+
+function closeModal() { document.getElementById('modal-container').innerHTML='' }
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  DASHBOARD
+// ══════════════════════════════════════════════════════════════════════════════
+function renderDashboard() {
+  var tasks = getTasks()
+  var hour  = new Date().getHours()
+  var greet = hour<12?'Good morning':hour<18?'Good afternoon':'Good evening'
+  document.getElementById('dash-greeting').textContent = greet+', '+currentUser.name.split(' ')[0]+'!'
+  document.getElementById('dash-date').textContent     = new Date().toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long',year:'numeric'})
+
+  // ── Core counts ───────────────────────────────────────────────────────────
+  var now         = new Date()
+  var todayStr    = now.toDateString()
+  var weekAgo     = new Date(now - 7*24*3600000)
+  var twoWeeksAgo = new Date(now - 14*24*3600000)
+
+  var open          = tasks.filter(function(t){return t.status!=='closed'})
+  var breached      = tasks.filter(function(t){var s=getSLAInfo(t); return t.status!=='closed'&&s&&s.cls==='sla-breach'})
+  var atRisk        = tasks.filter(function(t){var s=getSLAInfo(t); return t.status!=='closed'&&s&&s.cls==='sla-warn'})
+  var urgentOpen    = tasks.filter(function(t){return t.status!=='closed'&&(t.priority==='urgent'||t.priority==='high')})
+  var closedToday   = tasks.filter(function(t){return t.status==='closed'&&t.closed_at&&new Date(t.closed_at).toDateString()===todayStr})
+  var createdToday  = tasks.filter(function(t){return t.created_at&&new Date(t.created_at).toDateString()===todayStr})
+  var createdThisWk = tasks.filter(function(t){return t.created_at&&new Date(t.created_at)>=weekAgo})
+  var createdLastWk = tasks.filter(function(t){return t.created_at&&new Date(t.created_at)>=twoWeeksAgo&&new Date(t.created_at)<weekAgo})
+  var closedThisWk  = tasks.filter(function(t){return t.closed_at&&new Date(t.closed_at)>=weekAgo})
+  var closedLastWk  = tasks.filter(function(t){return t.closed_at&&new Date(t.closed_at)>=twoWeeksAgo&&new Date(t.closed_at)<weekAgo})
+
+  // Avg resolution time (hours) across all closed tickets
+  var closedWithTime = tasks.filter(function(t){return t.status==='closed'&&t.closed_at&&t.created_at})
+  var avgResHrs = closedWithTime.length===0 ? null
+    : closedWithTime.reduce(function(s,t){return s+(new Date(t.closed_at)-new Date(t.created_at))/3600000},0) / closedWithTime.length
+  var avgResStr = avgResHrs===null ? '&mdash;'
+    : avgResHrs<1 ? '<1h'
+    : avgResHrs<24 ? Math.round(avgResHrs)+'h'
+    : (avgResHrs/24).toFixed(1)+'d'
+
+  // Trend arrows
+  function trend(curr, prev) {
+    if (prev===0&&curr===0) return ''
+    if (prev===0) return '<span class="text-xs text-green-500 ml-1">&#8593;New</span>'
+    var pct = Math.round((curr-prev)/prev*100)
+    if (pct===0) return '<span class="text-xs text-slate-400 ml-1">&#9135;0%</span>'
+    var up = pct>0
+    return '<span class="text-xs ml-1 '+(up?'text-red-400':'text-green-500')+'">'+(up?'&#8593;':'&#8595;')+Math.abs(pct)+'%</span>'
+  }
+
+  // ── Stat Cards ────────────────────────────────────────────────────────────
+  var statsHtml = ''
+  // Card 1: SLA Breached
+  statsHtml += '<div class="stat-card cursor-pointer hover:shadow-md transition-shadow" style="border-left:4px solid #FF5630;'+(breached.length>0?'background:#FFF5F3':'')+'" onclick="setQuickFilter(\'overdue\');navigate(\'tasks\')">'
+    + '<div class="text-2xl font-bold text-red-600">'+breached.length+'</div>'
+    + '<div class="text-xs font-semibold text-red-500 mt-1 uppercase tracking-wide">SLA Breached</div>'
+    + (atRisk.length>0?'<div class="text-xs text-orange-400 mt-0.5">+'+atRisk.length+' at risk</div>':'')
+    + '</div>'
+  // Card 2: Urgent / High open
+  statsHtml += '<div class="stat-card cursor-pointer hover:shadow-md transition-shadow" style="'+(urgentOpen.length>0?'border-left:4px solid #FF991F':'')+'" onclick="navigate(\'tasks\')">'
+    + '<div class="text-2xl font-bold text-orange-500">'+urgentOpen.length+'</div>'
+    + '<div class="text-xs font-semibold text-slate-500 mt-1 uppercase tracking-wide">Urgent / High Open</div>'
+    + '<div class="text-xs text-slate-400 mt-0.5">'+open.length+' total open</div>'
+    + '</div>'
+  // Card 3: Created Today
+  statsHtml += '<div class="stat-card">'
+    + '<div class="text-2xl font-bold text-slate-700">'+createdToday.length+'</div>'
+    + '<div class="text-xs font-semibold text-slate-500 mt-1 uppercase tracking-wide">Created Today</div>'
+    + '<div class="text-xs text-slate-400 mt-0.5">'+createdThisWk.length+' this week'+trend(createdThisWk.length,createdLastWk.length)+'</div>'
+    + '</div>'
+  // Card 4: Avg Resolution Time
+  statsHtml += '<div class="stat-card">'
+    + '<div class="text-2xl font-bold text-purple-600">'+avgResStr+'</div>'
+    + '<div class="text-xs font-semibold text-slate-500 mt-1 uppercase tracking-wide">Avg Resolution</div>'
+    + '<div class="text-xs text-slate-400 mt-0.5">'+(closedWithTime.length>0?'Based on '+closedWithTime.length+' closed':'No closed tickets yet')+'</div>'
+    + '</div>'
+  // Card 5: Closed Today
+  statsHtml += '<div class="stat-card">'
+    + '<div class="text-2xl font-bold text-green-600">'+closedToday.length+'</div>'
+    + '<div class="text-xs font-semibold text-slate-500 mt-1 uppercase tracking-wide">Closed Today</div>'
+    + '<div class="text-xs text-slate-400 mt-0.5">'+closedThisWk.length+' this week'+trend(closedThisWk.length,closedLastWk.length)+'</div>'
+    + '</div>'
+  document.getElementById('dash-stats').innerHTML = statsHtml
+
+  // ── Charts ────────────────────────────────────────────────────────────────
+  function barRow(label, count, base, cls) {
+    var pct = base>0 ? Math.round(count/base*100) : 0
+    return '<div class="mb-2.5">'
+      + '<div class="flex justify-between text-xs mb-1">'
+      + '<span class="font-medium text-slate-700">'+label+'</span>'
+      + '<span class="text-slate-500">'+count+'</span>'
+      + '</div>'
+      + '<div class="bg-slate-200 rounded-full h-1.5 overflow-hidden">'
+      + '<div class="'+cls+' h-1.5 rounded-full" style="width:'+pct+'%"></div>'
+      + '</div></div>'
+  }
+
+  // Open by category
+  var byCat = {}
+  open.forEach(function(t){ var c=t.category||'Other'; byCat[c]=(byCat[c]||0)+1 })
+  var catEntries = Object.entries(byCat).sort(function(a,b){return b[1]-a[1]})
+  var catCols = ['bg-blue-500','bg-purple-500','bg-orange-400','bg-green-500','bg-red-400','bg-slate-400']
+  var catHtml = catEntries.length===0
+    ? '<p class="text-slate-400 text-sm">No open tickets</p>'
+    : catEntries.map(function(e,i){return barRow(e[0],e[1],open.length,catCols[i%catCols.length])}).join('')
+
+  // Open by priority
+  var byPrioOpen = {urgent:0,high:0,normal:0,low:0}
+  open.forEach(function(t){if(byPrioOpen[t.priority]!==undefined)byPrioOpen[t.priority]++})
+
+  // This week vs last week
+  var weekHtml = '<div class="space-y-4">'
+    + '<div>'
+    + '<div class="flex justify-between items-center mb-1">'
+    + '<span class="text-xs font-semibold text-slate-600">Created</span>'
+    + '<div class="text-right">'
+    + '<span class="text-lg font-bold text-slate-800">'+createdThisWk.length+'</span>'
+    + '<span class="text-xs text-slate-400 ml-1">this wk</span>'
+    + trend(createdThisWk.length,createdLastWk.length)
+    + '</div></div>'
+    + '<div class="flex gap-1 items-center text-xs text-slate-400">'
+    + '<span class="w-2 h-2 rounded-full bg-slate-400 inline-block"></span>'
+    + createdLastWk.length+' last week'
+    + '</div>'
+    + '</div>'
+    + '<div class="border-t border-slate-100 pt-4">'
+    + '<div class="flex justify-between items-center mb-1">'
+    + '<span class="text-xs font-semibold text-slate-600">Resolved</span>'
+    + '<div class="text-right">'
+    + '<span class="text-lg font-bold text-green-600">'+closedThisWk.length+'</span>'
+    + '<span class="text-xs text-slate-400 ml-1">this wk</span>'
+    + trend(closedThisWk.length,closedLastWk.length)
+    + '</div></div>'
+    + '<div class="flex gap-1 items-center text-xs text-slate-400">'
+    + '<span class="w-2 h-2 rounded-full bg-slate-400 inline-block"></span>'
+    + closedLastWk.length+' last week'
+    + '</div>'
+    + '</div>'
+    + '<div class="border-t border-slate-100 pt-3 mt-2">'
+    + '<div class="flex justify-between text-xs">'
+    + '<span class="text-slate-500">Backlog (net open)</span>'
+    + '<span class="font-bold '+(createdThisWk.length>closedThisWk.length?'text-red-500':'text-green-500')+'">'
+    + (createdThisWk.length-closedThisWk.length>0?'+':'')+(createdThisWk.length-closedThisWk.length)+' this wk'
+    + '</span>'
+    + '</div>'
+    + '</div>'
+    + '</div>'
+
+  document.getElementById('dash-charts').innerHTML =
+    '<div class="bg-white rounded-xl border border-slate-200 p-5">'
+    + '<h3 class="font-semibold text-slate-800 text-sm mb-4">This Week vs Last Week</h3>'
+    + weekHtml
+    + '</div>'
+    + '<div class="bg-white rounded-xl border border-slate-200 p-5">'
+    + '<h3 class="font-semibold text-slate-800 text-sm mb-4">Open Tickets by Category</h3>'
+    + catHtml
+    + '</div>'
+    + '<div class="bg-white rounded-xl border border-slate-200 p-5">'
+    + '<h3 class="font-semibold text-slate-800 text-sm mb-4">Open Tickets by Priority</h3>'
+    + barRow('Urgent', byPrioOpen.urgent, open.length, 'bg-red-500')
+    + barRow('High',   byPrioOpen.high,   open.length, 'bg-orange-400')
+    + barRow('Normal', byPrioOpen.normal, open.length, 'bg-blue-400')
+    + barRow('Low',    byPrioOpen.low,    open.length, 'bg-slate-400')
+    + '</div>'
+
+  // ── SLA Team Breakdown ────────────────────────────────────────────────────
+  var internalTeams = getTeams().filter(function(t){return t.type==='internal'||t.type==='admin'})
+  var slaRows = internalTeams.map(function(team){
+    var tt      = tasks.filter(function(t){return t.assigned_team_id===team.id&&t.status!=='closed'})
+    var tBreach = tt.filter(function(t){var s=getSLAInfo(t); return s&&s.cls==='sla-breach'})
+    var tRisk   = tt.filter(function(t){var s=getSLAInfo(t); return s&&s.cls==='sla-warn'})
+    var tOk     = tt.filter(function(t){var s=getSLAInfo(t); return s&&s.cls==='sla-ok'})
+    var pctB    = tt.length ? Math.round(tBreach.length/tt.length*100) : 0
+    var pctR    = tt.length ? Math.round(tRisk.length/tt.length*100)   : 0
+    var pctO    = tt.length ? Math.round(tOk.length/tt.length*100)     : 0
+    var breachBar = tt.length===0
+      ? '<span class="text-xs text-slate-400">No open tickets</span>'
+      : '<div class="flex gap-0.5 h-2 rounded overflow-hidden w-32">'
+        + '<div class="bg-red-500 h-2" style="width:'+pctB+'%"></div>'
+        + '<div class="bg-orange-400 h-2" style="width:'+pctR+'%"></div>'
+        + '<div class="bg-green-400 h-2" style="width:'+pctO+'%"></div>'
+        + '</div>'
+    var breachCell = tBreach.length>0
+      ? '<span class="badge sla-breach">'+tBreach.length+'</span>'
+      : '<span class="text-slate-300 text-xs">&mdash;</span>'
+    var riskCell = tRisk.length>0
+      ? '<span class="badge sla-warn">'+tRisk.length+'</span>'
+      : '<span class="text-slate-300 text-xs">&mdash;</span>'
+    return '<tr class="border-b border-slate-100 hover:bg-slate-50">'
+      + '<td class="py-2.5 px-3"><div class="flex items-center gap-2">'
+      + '<div class="w-2.5 h-2.5 rounded-full flex-shrink-0" style="background:'+getTeamColor(team.id)+'"></div>'
+      + '<span class="font-medium text-slate-800 text-sm">'+team.name+'</span>'
+      + '</div></td>'
+      + '<td class="py-2.5 px-3 text-center text-sm text-slate-600">'+tt.length+'</td>'
+      + '<td class="py-2.5 px-3 text-center">'+breachCell+'</td>'
+      + '<td class="py-2.5 px-3 text-center">'+riskCell+'</td>'
+      + '<td class="py-2.5 px-3 text-center"><span class="text-sm '+(pctB>0?'text-red-600 font-bold':'text-slate-500')+'">'+pctB+'%</span></td>'
+      + '<td class="py-2.5 px-3">'+breachBar+'</td>'
+      + '</tr>'
+  }).join('')
+
+  var slaEl = document.getElementById('dash-sla')
+  if (slaEl) slaEl.innerHTML = internalTeams.length===0 ? '' :
+    '<div class="bg-white rounded-xl border border-slate-200 p-5">'
+    + '<div class="flex items-center justify-between mb-4">'
+    + '<h2 class="font-semibold text-slate-800 text-sm">SLA Status by Team</h2>'
+    + '<div class="flex items-center gap-3 text-xs text-slate-500">'
+    + '<span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-red-500 inline-block"></span>Breached</span>'
+    + '<span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-orange-400 inline-block"></span>At Risk</span>'
+    + '<span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-green-400 inline-block"></span>On Track</span>'
+    + '</div></div>'
+    + '<table class="w-full">'
+    + '<thead><tr class="border-b border-slate-200">'
+    + '<th class="text-left py-2 px-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Team</th>'
+    + '<th class="text-center py-2 px-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Open</th>'
+    + '<th class="text-center py-2 px-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Breached</th>'
+    + '<th class="text-center py-2 px-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">At Risk</th>'
+    + '<th class="text-center py-2 px-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Breach %</th>'
+    + '<th class="py-2 px-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Breakdown</th>'
+    + '</tr></thead>'
+    + '<tbody>'+slaRows+'</tbody>'
+    + '</table></div>'
+
+  // ── Needs Attention (top 5 critical open) ────────────────────────────────
+  var prioOrder = {urgent:0,high:1,normal:2,low:3}
+  var attention = open.slice().sort(function(a,b){
+    var pa = prioOrder[a.priority]!==undefined?prioOrder[a.priority]:2
+    var pb = prioOrder[b.priority]!==undefined?prioOrder[b.priority]:2
+    if (pa!==pb) return pa-pb
+    var ao = isOverdue(a)?0:1, bo = isOverdue(b)?0:1
+    if (ao!==bo) return ao-bo
+    return new Date(a.created_at)-new Date(b.created_at)
+  }).slice(0,5)
+
+  document.getElementById('dash-recent').innerHTML = attention.length===0
+    ? '<p class="text-slate-400 text-sm">No open tickets</p>'
+    : attention.map(function(t){
+        var slaInfo = getSLAInfo(t)
+        var slaHtml = (slaInfo&&t.status!=='closed')
+          ? '<span class="badge '+slaInfo.cls+'" style="font-size:10px;margin-left:4px">'+slaInfo.label+'</span>' : ''
+        var overdueHtml = isOverdue(t) ? '<span class="text-red-500 text-xs ml-1 font-semibold">Overdue</span>' : ''
+        return '<div class="flex items-start justify-between py-2.5 border-b border-slate-100 cursor-pointer hover:bg-slate-50 rounded px-1" onclick="openSlideOver(\''+t.id+'\')">'
+          + '<div class="flex-1 min-w-0 pr-2">'
+          + '<div class="flex items-center gap-1.5 flex-wrap">'
+          + priorityBadge(t.priority)
+          + '<span class="font-medium text-slate-800 text-sm truncate">'+t.title+'</span>'
+          + '</div>'
+          + '<div class="text-xs text-slate-400 mt-0.5">'+getTeamName(t.assigned_team_id)+' &middot; '+fmtDate(t.due_date)+overdueHtml+slaHtml+'</div>'
+          + '</div>'
+          + '<div class="flex-shrink-0">'+statusBadge(t.status)+'</div>'
+          + '</div>'
+      }).join('')
+
+  // ── Team Performance Table ───────────────────────────────────────────────
+  var allTeams = getTeams()
+  var perfRows = allTeams.map(function(team) {
+    var assigned = tasks.filter(function(t){ return t.assigned_team_id===team.id })
+    var teamClosed = assigned.filter(function(t){ return t.status==='closed' })
+    var teamOpen   = assigned.filter(function(t){ return t.status!=='closed' })
+    var teamBreached = teamOpen.filter(function(t){ var s=getSLAInfo(t); return s&&s.cls==='sla-breach' })
+    var total  = assigned.length
+    var pendPct = total>0 ? Math.round(teamOpen.length/total*100) : 0
+    var closedPct = total>0 ? Math.round(teamClosed.length/total*100) : 0
+    // Avg resolution time for this team
+    var tclosed = teamClosed.filter(function(t){return t.closed_at&&t.created_at})
+    var avgH = tclosed.length===0 ? null
+      : tclosed.reduce(function(s,t){return s+(new Date(t.closed_at)-new Date(t.created_at))/3600000},0)/tclosed.length
+    var avgStr = avgH===null ? '<span class="text-slate-300 text-xs">-</span>'
+      : avgH<1 ? '<1h'
+      : avgH<24 ? Math.round(avgH)+'h'
+      : (avgH/24).toFixed(1)+'d'
+    // Pending bar (green=closed, red=open)
+    var barHtml = total===0
+      ? '<span class="text-xs text-slate-300">No tickets</span>'
+      : '<div class="flex gap-0 h-2 rounded overflow-hidden w-28">'
+        + '<div class="bg-green-400 h-2" style="width:'+closedPct+'%"></div>'
+        + '<div class="bg-red-400 h-2" style="width:'+pendPct+'%"></div>'
+        + '</div>'
+    var pendCell = total===0 ? '<span class="text-slate-300 text-xs">-</span>'
+      : '<span class="font-semibold '+(pendPct>60?'text-red-600':pendPct>30?'text-orange-500':'text-green-600')+'">'+pendPct+'%</span>'
+    var breachCell = teamBreached.length>0
+      ? '<span class="badge sla-breach">'+teamBreached.length+'</span>'
+      : '<span class="text-slate-300 text-xs">-</span>'
+    return '<tr class="border-b border-slate-100 hover:bg-slate-50">'
+      + '<td class="py-2.5 px-3"><div class="flex items-center gap-2">'
+      + '<div class="w-2.5 h-2.5 rounded-full flex-shrink-0" style="background:'+getTeamColor(team.id)+'"></div>'
+      + '<span class="font-medium text-slate-800 text-sm">'+team.name+'</span>'
+      + '</div></td>'
+      + '<td class="py-2.5 px-3 text-center text-sm text-slate-600">'+total+'</td>'
+      + '<td class="py-2.5 px-3 text-center"><span class="text-sm font-semibold text-green-600">'+teamClosed.length+'</span></td>'
+      + '<td class="py-2.5 px-3 text-center"><span class="text-sm text-slate-600">'+teamOpen.length+'</span></td>'
+      + '<td class="py-2.5 px-3 text-center">'+pendCell+'</td>'
+      + '<td class="py-2.5 px-3 text-center">'+breachCell+'</td>'
+      + '<td class="py-2.5 px-3 text-center text-sm text-purple-600">'+avgStr+'</td>'
+      + '<td class="py-2.5 px-3">'+barHtml+'</td>'
+      + '</tr>'
+  }).join('')
+
+  var perfEl = document.getElementById('dash-team-perf')
+  if (perfEl) perfEl.innerHTML = allTeams.length===0 ? '' :
+    '<div class="bg-white rounded-xl border border-slate-200 p-5">'
+    + '<div class="flex items-center justify-between mb-4">'
+    + '<h2 class="font-semibold text-slate-800 text-sm">Team Performance</h2>'
+    + '<div class="flex items-center gap-3 text-xs text-slate-500">'
+    + '<span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-green-400 inline-block"></span>Closed</span>'
+    + '<span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-red-400 inline-block"></span>Pending</span>'
+    + '</div></div>'
+    + '<table class="w-full">'
+    + '<thead><tr class="border-b border-slate-200">'
+    + '<th class="text-left py-2 px-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Team</th>'
+    + '<th class="text-center py-2 px-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Total</th>'
+    + '<th class="text-center py-2 px-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Closed</th>'
+    + '<th class="text-center py-2 px-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Pending</th>'
+    + '<th class="text-center py-2 px-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Pending %</th>'
+    + '<th class="text-center py-2 px-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">SLA Breach</th>'
+    + '<th class="text-center py-2 px-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Avg Resolve</th>'
+    + '<th class="py-2 px-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Progress</th>'
+    + '</tr></thead>'
+    + '<tbody>'+perfRows+'</tbody>'
+    + '</table></div>'
+
+  // ── Agent Performance Table ───────────────────────────────────────────────
+  var allUsers  = getUsers()
+  var agentRows = allUsers.map(function(u) {
+    var uTasks   = tasks.filter(function(t){ return t.created_by === u.id })
+    if (uTasks.length === 0) return ''
+    var uClosed  = uTasks.filter(function(t){ return t.status==='closed' })
+    var uOpen    = uTasks.filter(function(t){ return t.status!=='closed' })
+    var uBreached= uOpen.filter(function(t){ var s=getSLAInfo(t); return s&&s.cls==='sla-breach' })
+    var total    = uTasks.length
+    var pendPct  = total>0 ? Math.round(uOpen.length/total*100) : 0
+    var closedPct= total>0 ? Math.round(uClosed.length/total*100) : 0
+    var uc       = uClosed.filter(function(t){return t.closed_at&&t.created_at})
+    var avgH     = uc.length===0 ? null : uc.reduce(function(s,t){return s+(new Date(t.closed_at)-new Date(t.created_at))/3600000},0)/uc.length
+    var avgStr   = avgH===null ? '<span class="text-slate-300 text-xs">-</span>' : avgH<1 ? '<1h' : avgH<24 ? Math.round(avgH)+'h' : (avgH/24).toFixed(1)+'d'
+    var barHtml  = '<div class="flex gap-0 h-2 rounded overflow-hidden w-24"><div class="bg-green-400 h-2" style="width:'+closedPct+'%"></div><div class="bg-red-400 h-2" style="width:'+pendPct+'%"></div></div>'
+    var pendCell = '<span class="font-semibold '+(pendPct>60?'text-red-600':pendPct>30?'text-orange-500':'text-green-600')+'">'+pendPct+'%</span>'
+    var teamName = allTeams.find(function(t){return t.id===u.teamId})?.name||'—'
+    var roleTag  = '<span class="text-xs text-slate-400 ml-1">('+u.role+')</span>'
+    var breachCell = uBreached.length>0 ? '<span class="badge sla-breach">'+uBreached.length+'</span>' : '<span class="text-slate-300 text-xs">-</span>'
+    return '<tr class="border-b border-slate-100 hover:bg-slate-50">'
+      + '<td class="py-2.5 px-3"><div class="font-medium text-slate-800 text-sm">'+u.name+roleTag+'</div><div class="text-xs text-slate-400">'+teamName+'</div></td>'
+      + '<td class="py-2.5 px-3 text-center text-sm text-slate-600">'+total+'</td>'
+      + '<td class="py-2.5 px-3 text-center"><span class="text-sm font-semibold text-green-600">'+uClosed.length+'</span></td>'
+      + '<td class="py-2.5 px-3 text-center"><span class="text-sm text-slate-600">'+uOpen.length+'</span></td>'
+      + '<td class="py-2.5 px-3 text-center">'+pendCell+'</td>'
+      + '<td class="py-2.5 px-3 text-center">'+breachCell+'</td>'
+      + '<td class="py-2.5 px-3 text-center text-sm text-purple-600">'+avgStr+'</td>'
+      + '<td class="py-2.5 px-3">'+barHtml+'</td>'
+      + '</tr>'
+  }).join('')
+
+  var agentPerfEl = document.getElementById('dash-agent-perf')
+  if (agentPerfEl) agentPerfEl.innerHTML = agentRows.trim()==='' ? '' :
+    '<div class="bg-white rounded-xl border border-slate-200 p-5">'
+    + '<div class="flex items-center justify-between mb-4">'
+    + '<h2 class="font-semibold text-slate-800 text-sm">Agent Performance</h2>'
+    + '<div class="flex items-center gap-3 text-xs text-slate-500">'
+    + '<span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-green-400 inline-block"></span>Closed</span>'
+    + '<span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-red-400 inline-block"></span>Pending</span>'
+    + '</div></div>'
+    + '<table class="w-full">'
+    + '<thead><tr class="border-b border-slate-200">'
+    + '<th class="text-left py-2 px-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Agent</th>'
+    + '<th class="text-center py-2 px-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Total</th>'
+    + '<th class="text-center py-2 px-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Closed</th>'
+    + '<th class="text-center py-2 px-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Pending</th>'
+    + '<th class="text-center py-2 px-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Pending %</th>'
+    + '<th class="text-center py-2 px-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">SLA Breach</th>'
+    + '<th class="text-center py-2 px-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Avg Resolve</th>'
+    + '<th class="py-2 px-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Progress</th>'
+    + '</tr></thead>'
+    + '<tbody>'+agentRows+'</tbody>'
+    + '</table></div>'
+
+  // ── LOB Performance Table ─────────────────────────────────────────────────
+  var ALL_LOBS = getLOBs()
+  var lobRows = ALL_LOBS.map(function(lob) {
+    var lt = tasks.filter(function(t){ return t.lob === lob })
+    if (lt.length === 0) return ''
+    var lClosed  = lt.filter(function(t){ return t.status==='closed' }).length
+    var lOpen    = lt.filter(function(t){ return t.status!=='closed' }).length
+    var lUrgent  = lt.filter(function(t){ return t.priority==='urgent' && t.status!=='closed' }).length
+    var lBreached= lt.filter(function(t){ var s=getSLAInfo(t); return s&&s.cls==='sla-breach' }).length
+    var total    = lt.length
+    var pendPct  = total>0 ? Math.round(lOpen/total*100) : 0
+    var closedPct= total>0 ? Math.round(lClosed/total*100) : 0
+    var bar = '<div class="flex h-2 rounded overflow-hidden w-20"><div class="bg-green-400 h-2" style="width:'+closedPct+'%"></div><div class="bg-amber-400 h-2" style="width:'+pendPct+'%"></div></div>'
+    var urgCell = lUrgent>0 ? '<span class="badge sla-breach">'+lUrgent+'</span>' : '<span class="text-slate-300 text-xs">-</span>'
+    var brchCell= lBreached>0 ? '<span class="badge sla-breach">'+lBreached+'</span>' : '<span class="text-slate-300 text-xs">-</span>'
+    var pendCell= '<span class="font-semibold '+(pendPct>60?'text-red-600':pendPct>30?'text-orange-500':'text-green-600')+'">'+pendPct+'%</span>'
+    return '<tr class="border-b border-slate-100 hover:bg-slate-50">'
+      + '<td class="py-2.5 px-3"><span class="text-xs font-semibold px-2 py-0.5 rounded bg-indigo-50 text-indigo-700">'+lob+'</span></td>'
+      + '<td class="py-2.5 px-3 text-center text-sm text-slate-600">'+total+'</td>'
+      + '<td class="py-2.5 px-3 text-center"><span class="text-sm font-semibold text-green-600">'+lClosed+'</span></td>'
+      + '<td class="py-2.5 px-3 text-center"><span class="text-sm text-slate-600">'+lOpen+'</span></td>'
+      + '<td class="py-2.5 px-3 text-center">'+pendCell+'</td>'
+      + '<td class="py-2.5 px-3 text-center">'+urgCell+'</td>'
+      + '<td class="py-2.5 px-3 text-center">'+brchCell+'</td>'
+      + '<td class="py-2.5 px-3">'+bar+'</td>'
+      + '</tr>'
+  }).join('')
+
+  var lobPerfEl = document.getElementById('dash-lob-perf')
+  if (lobPerfEl) lobPerfEl.innerHTML = lobRows.trim()==='' ? '' :
+    '<div class="bg-white rounded-xl border border-slate-200 p-5">'
+    + '<h2 class="font-semibold text-slate-800 text-sm mb-4">LOB Performance</h2>'
+    + '<table class="w-full">'
+    + '<thead><tr class="border-b border-slate-200">'
+    + '<th class="text-left py-2 px-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">LOB</th>'
+    + '<th class="text-center py-2 px-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Total</th>'
+    + '<th class="text-center py-2 px-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Closed</th>'
+    + '<th class="text-center py-2 px-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Pending</th>'
+    + '<th class="text-center py-2 px-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Pending %</th>'
+    + '<th class="text-center py-2 px-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Urgent Open</th>'
+    + '<th class="text-center py-2 px-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">SLA Breach</th>'
+    + '<th class="py-2 px-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Progress</th>'
+    + '</tr></thead>'
+    + '<tbody>'+lobRows+'</tbody>'
+    + '</table></div>'
+
+  // ── Activity Feed ─────────────────────────────────────────────────────────
+  var activity = getActivity()
+  document.getElementById('dash-activity').innerHTML = activity.length===0
+    ? '<p class="text-slate-400">No activity yet</p>'
+    : activity.slice(0,8).map(function(a){
+        return '<div class="flex items-start gap-2 py-1 border-b border-slate-50">'
+          + '<div class="w-1.5 h-1.5 rounded-full bg-blue-400 mt-1.5 flex-shrink-0"></div>'
+          + '<div class="flex-1 text-xs"><span class="font-medium text-slate-700">'+a.who+'</span> <span class="text-slate-500">'+a.msg+'</span></div>'
+          + '<span class="text-xs text-slate-400 flex-shrink-0">'+fmtDT(a.time)+'</span>'
+          + '</div>'
+      }).join('')
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  ADMIN
+// ══════════════════════════════════════════════════════════════════════════════
+function renderAdmin() {
+  if (currentUser.role!=='admin') {
+    document.getElementById('admin-tab-content').innerHTML='<p class="text-red-500">Access denied</p>'
+    return
+  }
+  switchAdminTab(currentAdminTab)
+}
+
+function switchAdminTab(tab) {
+  currentAdminTab = tab
+  ;['teams','users','categories','lob','recurring','email'].forEach(t=>{
+    document.getElementById('tab-'+t)?.classList.toggle('active',t===tab)
+  })
+  if (tab==='email') { renderEmailSettings(); return }
+  const el = document.getElementById('admin-tab-content')
+
+  if (tab==='recurring') {
+    const recs = getRecurring()
+    const teams = getTeams()
+    const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
+    const intervalLabel = function(r) {
+      if (r.interval==='daily') return 'Every Day'
+      if (r.interval==='weekly') return 'Every '+days[r.day_of_week||1]
+      if (r.interval==='monthly') return 'Every '+((r.day_of_month||1))+'th of month'
+      return r.interval
+    }
+    el.innerHTML = `
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="font-semibold text-slate-800">Recurring Ticket Templates</h2>
+        <button onclick="openRecurringModal()" class="btn btn-primary btn-sm">+ Add Template</button>
+      </div>
+      ${recs.length===0 ? '<p class="text-slate-400 text-sm">No recurring templates yet.</p>' : ''}
+      <div class="space-y-3">
+        ${recs.map((r,i) => `
+          <div class="bg-white border border-slate-200 rounded-lg p-4 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+              <div class="w-2.5 h-2.5 rounded-full flex-shrink-0" style="background:${r.active?'#00875A':'#DFE1E6'}"></div>
+              <div>
+                <div class="font-medium text-slate-800">${r.title}</div>
+                <div class="text-xs text-slate-400 mt-0.5">
+                  ${intervalLabel(r)} &middot; Due in ${r.due_hours}h &middot; ${teams.find(t=>t.id===r.assigned_team_id)?.name||'No team'}
+                  ${r.last_created ? '&middot; Last created: '+fmtDate(r.last_created) : '&middot; Never created yet'}
+                </div>
+              </div>
+            </div>
+            <div class="flex gap-2">
+              <button onclick="toggleRecurring(${i})" class="btn btn-secondary btn-sm">${r.active?'Pause':'Resume'}</button>
+              <button onclick="deleteRecurring(${i})" class="btn btn-danger btn-sm">Delete</button>
+            </div>
+          </div>`).join('')}
+      </div>`
+  } else if (tab==='teams') {
+    const teams=getTeams(), users=getUsers()
+    el.innerHTML=`
+      <div class="space-y-3 mb-5">
+        ${teams.map(t=>`
+          <div class="bg-white rounded-xl border border-slate-200 p-4 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+              <div class="w-4 h-4 rounded-full" style="background:${t.color}"></div>
+              <span class="font-medium text-slate-800">${t.name}</span>
+              <span class="text-xs text-slate-400">${users.filter(u=>u.teamId===t.id).length} member(s)</span>
+            </div>
+            <button onclick="deleteTeam('${t.id}')" class="btn btn-danger btn-sm">Delete</button>
+          </div>`).join('')}
+      </div>
+      <div class="bg-white rounded-xl border border-slate-200 p-5">
+        <h3 class="font-semibold text-slate-800 mb-3">Add New Team</h3>
+        <div class="flex gap-3 flex-wrap">
+          <input id="new-team-name" type="text" class="form-input flex-1" placeholder="Team name"/>
+          <input id="new-team-color" type="color" class="w-12 h-10 rounded border border-slate-200 cursor-pointer" value="#3b82f6"/>
+          <button onclick="addTeam()" class="btn btn-primary">Add Team</button>
+        </div>
+      </div>`
+  } else if (tab==='users') {
+    const users=getUsers(), teams=getTeams()
+    el.innerHTML=`
+      <div class="space-y-3 mb-5">
+        ${users.map(u=>`
+          <div class="bg-white rounded-xl border border-slate-200 p-4 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+              <div class="w-9 h-9 rounded-full bg-blue-600 flex items-center justify-center text-white text-sm font-bold">${u.name.charAt(0)}</div>
+              <div>
+                <div class="font-medium text-slate-800">${u.name}</div>
+                <div class="text-xs text-slate-400">${u.email}</div>
+              </div>
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="badge bg-slate-100 text-slate-600">${getTeamName(u.teamId)}</span>
+              <span class="badge ${u.role==='admin'?'bg-blue-100 text-blue-700':u.role==='manager'?'bg-orange-100 text-orange-700':u.role==='stakeholder'?'bg-purple-100 text-purple-700':'bg-green-100 text-green-700'}">${u.role}</span>
+              ${u.id!==currentUser.id?`<button onclick="deleteUser('${u.id}')" class="btn btn-danger btn-sm">Delete</button>`:'<span class="text-xs text-slate-400">You</span>'}
+            </div>
+          </div>`).join('')}
+      </div>
+      <div class="bg-white rounded-xl border border-slate-200 p-5">
+        <h3 class="font-semibold text-slate-800 mb-4">Add New User</h3>
+        <div class="grid grid-cols-2 gap-3">
+          <div><label class="form-label">Full Name *</label><input id="nu-name" type="text" class="form-input" placeholder="John Smith"/></div>
+          <div><label class="form-label">Email *</label><input id="nu-email" type="email" class="form-input" placeholder="john@company.com"/></div>
+          <div><label class="form-label">Password *</label><input id="nu-pass" type="password" class="form-input" placeholder="Min 6 chars"/></div>
+          <div><label class="form-label">Role *</label>
+            <select id="nu-role" class="form-input">
+              <option value="agent">Agent</option>
+              <option value="manager">Manager</option>
+              <option value="admin">Admin</option>
+              <option value="stakeholder">Stakeholder</option>
+            </select>
+          </div>
+          <div class="col-span-2"><label class="form-label">Team *</label>
+            <select id="nu-team" class="form-input">${teams.map(t=>`<option value="${t.id}">${t.name}</option>`).join('')}</select>
+          </div>
+        </div>
+        <button onclick="addUser()" class="btn btn-primary mt-4">Add User</button>
+      </div>`
+  } else if (tab==='categories') {
+    const cats=getCategories()
+    el.innerHTML=`
+      <div class="space-y-3 mb-4">
+        ${cats.map((c,i)=>`
+          <div class="bg-white rounded-xl border border-slate-200 p-4 flex items-center justify-between">
+            <div><div class="font-medium text-slate-800">${c.name}</div><div class="text-xs text-slate-400">SLA: ${c.sla} hours</div></div>
+            <button onclick="deleteCategory(${i})" class="btn btn-danger btn-sm">Remove</button>
+          </div>`).join('')}
+      </div>
+      <div class="bg-white rounded-xl border border-slate-200 p-5">
+        <h3 class="font-semibold text-slate-800 mb-3">Add Category</h3>
+        <div class="flex gap-3">
+          <input id="new-cat-name" type="text" class="form-input flex-1" placeholder="Category name"/>
+          <input id="new-cat-sla" type="number" class="form-input w-28" placeholder="SLA hrs"/>
+          <button onclick="addCategory()" class="btn btn-primary">Add</button>
+        </div>
+      </div>`
+  } else if (tab==='lob') {
+    const lobs = getLOBs()
+    el.innerHTML=`
+      <div class="space-y-3 mb-4">
+        ${lobs.length===0 ? '<p class="text-slate-400 text-sm">No LOBs yet.</p>' : ''}
+        ${lobs.map((l,i)=>`
+          <div class="bg-white rounded-xl border border-slate-200 p-4 flex items-center justify-between">
+            <span class="font-medium text-slate-800">${l}</span>
+            <button onclick="deleteLOB(${i})" class="btn btn-danger btn-sm">Remove</button>
+          </div>`).join('')}
+      </div>
+      <div class="bg-white rounded-xl border border-slate-200 p-5">
+        <h3 class="font-semibold text-slate-800 mb-3">Add LOB</h3>
+        <div class="flex gap-3">
+          <input id="new-lob-name" type="text" class="form-input flex-1" placeholder="e.g. Inbound, L2CS, Sales..."/>
+          <button onclick="addLOB()" class="btn btn-primary">Add</button>
+        </div>
+      </div>`
+  }
+}
+
+function addTeam() {
+  const name=document.getElementById('new-team-name').value.trim()
+  const color=document.getElementById('new-team-color').value
+  if (!name){showToast('Team name required','error');return}
+  const teams=getTeams()
+  if (teams.find(t=>t.name.toLowerCase()===name.toLowerCase())){showToast('Team already exists','error');return}
+  teams.push({id:'team-'+Date.now(),name,color})
+  saveTeams(teams); showToast('Team added!'); switchAdminTab('teams')
+}
+function deleteTeam(id) {
+  if (getUsers().some(u=>u.teamId===id)){showToast('Remove all members first','error');return}
+  if (!confirm('Delete this team?')) return
+  saveTeams(getTeams().filter(t=>t.id!==id)); showToast('Team deleted','error'); switchAdminTab('teams')
+}
+function addUser() {
+  const name=document.getElementById('nu-name').value.trim()
+  const email=document.getElementById('nu-email').value.trim().toLowerCase()
+  const pass=document.getElementById('nu-pass').value.trim()
+  const role=document.getElementById('nu-role').value
+  const teamId=document.getElementById('nu-team').value
+  if (!name||!email||!pass){showToast('Name, email and password required','error');return}
+  if (pass.length<6){showToast('Password must be ≥6 characters','error');return}
+  const users=getUsers()
+  if (users.find(u=>u.email===email)){showToast('Email already exists','error');return}
+  users.push({id:'u-'+Date.now(),name,email,password:pass,role,teamId})
+  saveUsers(users); showToast('User added!'); switchAdminTab('users')
+}
+function deleteUser(id) {
+  if (!confirm('Delete this user?')) return
+  saveUsers(getUsers().filter(u=>u.id!==id)); showToast('User deleted','error'); switchAdminTab('users')
+}
+function toggleRecurring(i) {
+  var recs = getRecurring()
+  recs[i].active = !recs[i].active
+  saveRecurring(recs)
+  showToast(recs[i].active ? 'Template resumed' : 'Template paused')
+  switchAdminTab('recurring')
+}
+function deleteRecurring(i) {
+  if (!confirm('Delete this recurring template?')) return
+  var recs = getRecurring()
+  recs.splice(i, 1)
+  saveRecurring(recs)
+  showToast('Template deleted', 'error')
+  switchAdminTab('recurring')
+}
+function openRecurringModal() {
+  var teams = getTeams().filter(function(t){return t.type==='internal'||t.type==='admin'})
+  var cats  = getCategories()
+  document.getElementById('modal-container').innerHTML = `
+    <div class="modal-overlay" onclick="if(event.target===this)closeModal()">
+      <div class="modal-box" style="width:560px">
+        <div class="flex items-center justify-between mb-5">
+          <h2 class="text-lg font-bold text-slate-900">New Recurring Template</h2>
+          <button onclick="closeModal()" class="text-slate-400 hover:text-slate-700 text-xl font-bold">&times;</button>
+        </div>
+        <div class="space-y-4">
+          <div>
+            <label class="form-label">Template Title <span class="text-red-500">*</span></label>
+            <input id="rec-title" type="text" class="form-input" placeholder="e.g. Weekly Roster, RAG Report"/>
+          </div>
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="form-label">Category</label>
+              <select id="rec-category" class="form-input">
+                ${cats.map(c=>'<option value="'+c.name+'">'+c.name+'</option>').join('')}
+              </select>
+            </div>
+            <div>
+              <label class="form-label">Priority</label>
+              <select id="rec-priority" class="form-input">
+                <option value="normal">Normal</option>
+                <option value="high">High</option>
+                <option value="urgent">Urgent</option>
+                <option value="low">Low</option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <label class="form-label">Assign To Team</label>
+            <select id="rec-team" class="form-input">
+              ${teams.map(t=>'<option value="'+t.id+'">'+t.name+'</option>').join('')}
+            </select>
+          </div>
+          <div class="grid grid-cols-3 gap-4">
+            <div>
+              <label class="form-label">Repeat</label>
+              <select id="rec-interval" class="form-input" onchange="onRecIntervalChange()">
+                <option value="daily">Daily</option>
+                <option value="weekly">Weekly</option>
+                <option value="monthly">Monthly</option>
+              </select>
+            </div>
+            <div id="rec-dow-wrap">
+              <label class="form-label">Day of Week</label>
+              <select id="rec-dow" class="form-input">
+                <option value="1">Monday</option>
+                <option value="2">Tuesday</option>
+                <option value="3">Wednesday</option>
+                <option value="4">Thursday</option>
+                <option value="5">Friday</option>
+                <option value="6">Saturday</option>
+                <option value="0">Sunday</option>
+              </select>
+            </div>
+            <div>
+              <label class="form-label">Due In (hours)</label>
+              <input id="rec-due-hours" type="number" class="form-input" value="4" min="1" max="168"/>
+            </div>
+          </div>
+          <div id="rec-dom-wrap" style="display:none">
+            <label class="form-label">Day of Month</label>
+            <input id="rec-dom" type="number" class="form-input" value="1" min="1" max="28" placeholder="1-28"/>
+          </div>
+          <div id="rec-error" class="hidden text-red-600 text-sm bg-red-50 rounded-lg p-3"></div>
+          <div class="flex gap-3 pt-1">
+            <button onclick="submitRecurring()" class="btn btn-primary">Save Template</button>
+            <button onclick="closeModal()" class="btn btn-secondary">Cancel</button>
+          </div>
+        </div>
+      </div>
+    </div>`
+}
+function onRecIntervalChange() {
+  var v = document.getElementById('rec-interval').value
+  document.getElementById('rec-dow-wrap').style.display  = v==='weekly'  ? '' : 'none'
+  document.getElementById('rec-dom-wrap').style.display  = v==='monthly' ? '' : 'none'
+}
+function submitRecurring() {
+  var title    = (document.getElementById('rec-title')?.value||'').trim()
+  var category = document.getElementById('rec-category')?.value
+  var priority = document.getElementById('rec-priority')?.value
+  var teamId   = document.getElementById('rec-team')?.value
+  var interval = document.getElementById('rec-interval')?.value
+  var dow      = parseInt(document.getElementById('rec-dow')?.value||'1')
+  var dom      = parseInt(document.getElementById('rec-dom')?.value||'1')
+  var dueHours = parseInt(document.getElementById('rec-due-hours')?.value||'4')
+  var errEl    = document.getElementById('rec-error')
+  if (!title) { errEl.textContent='Title is required'; errEl.classList.remove('hidden'); return }
+  var recs = getRecurring()
+  recs.push({
+    id: 'rec-'+Date.now(),
+    title, category, priority,
+    assigned_team_id: teamId,
+    interval, day_of_week: dow, day_of_month: dom,
+    due_hours: dueHours,
+    active: true,
+    last_created: null,
+    description: ''
+  })
+  saveRecurring(recs)
+  showToast('Recurring template saved!')
+  closeModal()
+  switchAdminTab('recurring')
+}
+
+function addCategory() {
+  const name=document.getElementById('new-cat-name').value.trim()
+  const sla=parseInt(document.getElementById('new-cat-sla').value)||48
+  if (!name){showToast('Name required','error');return}
+  const cats=getCategories(); cats.push({id:'cat-'+Date.now(),name,sla})
+  saveCategories(cats); showToast('Category added!'); switchAdminTab('categories')
+}
+function deleteCategory(i) {
+  if (!confirm('Remove this category?')) return
+  const cats=getCategories(); cats.splice(i,1)
+  saveCategories(cats); showToast('Category removed','error'); switchAdminTab('categories')
+}
+
+const DEFAULT_LOBS = ['Inbound','L2CS','High Pain','Low Pain','Sales','Staute','Router Recovery']
+function getLOBs() { try { return JSON.parse(localStorage.getItem('cch_lobs')||'null') || [...DEFAULT_LOBS] } catch { return [...DEFAULT_LOBS] } }
+function saveLOBs(lobs) { localStorage.setItem('cch_lobs', JSON.stringify(lobs)) }
+function addLOB() {
+  const name = document.getElementById('new-lob-name').value.trim()
+  if (!name) { showToast('LOB name required','error'); return }
+  const lobs = getLOBs()
+  if (lobs.includes(name)) { showToast('LOB already exists','error'); return }
+  lobs.push(name)
+  saveLOBs(lobs); showToast('LOB added!'); switchAdminTab('lob')
+}
+function deleteLOB(i) {
+  if (!confirm('Remove this LOB?')) return
+  const lobs = getLOBs(); lobs.splice(i,1)
+  saveLOBs(lobs); showToast('LOB removed','error'); switchAdminTab('lob')
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  EMAIL
+// ══════════════════════════════════════════════════════════════════════════════
+function getEmailConfig(){ try{return JSON.parse(localStorage.getItem('cch_email_config')||'null')||{}}catch{return{}} }
+function initEmailJS(){}
+
+function buildEmailBody(task,type){
+  const portalUrl=window.location.href.split('#')[0]+'#task-'+task.id
+  const isReminder=type==='reminder'
+  return [
+    isReminder?'⏰ REMINDER — This ticket needs attention!':'🎫 New ticket assigned to your team.',
+    '',
+    `TICKET: ${task.title}`,
+    '─'.repeat(50),
+    `Priority   : ${(task.priority||'').toUpperCase()}`,
+    `Status     : ${statusLabel(task.status)}`,
+    `Category   : ${task.category||'—'}`,
+    `Team       : ${getTeamName(task.assigned_team_id)}`,
+    `Due Date   : ${fmtDate(task.due_date)}${isOverdue(task)?'  ⚠️ OVERDUE':''}`,
+    `Created By : ${task.created_by_name||'—'}`,
+    '',
+    task.description?`Description:\n${task.description}\n`:'',
+    '─'.repeat(50),
+    'Open in portal: '+portalUrl,
+    '─'.repeat(50),
+    'Call Center Hub',
+  ].join('\n')
+}
+
+function buildEmailHTML(task, type) {
+  var isReminder = type === 'reminder'
+  var prioColors = {urgent:'#FF5630',high:'#FF991F',normal:'#0052CC',low:'#6B778C'}
+  var prioColor  = prioColors[task.priority] || '#0052CC'
+  var desc = task.description
+    ? '<tr><td style="padding:0 32px 16px"><div style="background:#F4F5F7;border-radius:4px;padding:12px 16px;font-size:13px;color:#172B4D">' + task.description + '</div></td></tr>'
+    : ''
+  return '<!DOCTYPE html><html><body style="margin:0;padding:0;background:#F4F5F7;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif">'
+    + '<table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:32px 16px">'
+    + '<table width="580" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:6px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08)">'
+    // Header
+    + '<tr><td style="background:#0052CC;padding:20px 32px">'
+    + '<div style="color:#fff;font-size:18px;font-weight:700">Call Center Hub</div>'
+    + '<div style="color:rgba(255,255,255,0.7);font-size:12px;margin-top:2px">' + (isReminder ? '⏰ Ticket Reminder' : '🎫 New Ticket Assigned') + '</div>'
+    + '</td></tr>'
+    // Title
+    + '<tr><td style="padding:24px 32px 8px">'
+    + '<div style="font-size:18px;font-weight:700;color:#172B4D">' + task.title + '</div>'
+    + '</td></tr>'
+    // Badges
+    + '<tr><td style="padding:8px 32px 16px">'
+    + '<span style="display:inline-block;padding:3px 10px;border-radius:3px;font-size:11px;font-weight:700;text-transform:uppercase;background:' + prioColor + ';color:#fff;margin-right:6px">' + (task.priority||'normal') + '</span>'
+    + '<span style="display:inline-block;padding:3px 10px;border-radius:3px;font-size:11px;font-weight:700;text-transform:uppercase;background:#DEEBFF;color:#0747A6">' + (task.status||'open').replace('_',' ') + '</span>'
+    + '</td></tr>'
+    // Details table
+    + '<tr><td style="padding:0 32px 16px">'
+    + '<table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #DFE1E6;border-radius:4px;overflow:hidden">'
+    + '<tr style="background:#F4F5F7"><td style="padding:8px 14px;font-size:11px;font-weight:700;color:#6B778C;text-transform:uppercase;width:120px">Category</td><td style="padding:8px 14px;font-size:13px;color:#172B4D">' + (task.category||'—') + '</td></tr>'
+    + '<tr><td style="padding:8px 14px;font-size:11px;font-weight:700;color:#6B778C;text-transform:uppercase">Assigned To</td><td style="padding:8px 14px;font-size:13px;color:#172B4D">' + getTeamName(task.assigned_team_id) + '</td></tr>'
+    + '<tr style="background:#F4F5F7"><td style="padding:8px 14px;font-size:11px;font-weight:700;color:#6B778C;text-transform:uppercase">Due Date</td><td style="padding:8px 14px;font-size:13px;color:' + (isOverdue(task)?'#FF5630':'#172B4D') + '">' + fmtDate(task.due_date) + (isOverdue(task)?' ⚠️ OVERDUE':'') + '</td></tr>'
+    + '<tr><td style="padding:8px 14px;font-size:11px;font-weight:700;color:#6B778C;text-transform:uppercase">Raised By</td><td style="padding:8px 14px;font-size:13px;color:#172B4D">' + (task.created_by_name||'—') + '</td></tr>'
+    + '</table></td></tr>'
+    // Description
+    + desc
+    // Footer
+    + '<tr><td style="padding:16px 32px 24px;border-top:1px solid #F4F5F7">'
+    + '<div style="font-size:12px;color:#6B778C">Ticket ID: ' + task.id + ' &middot; Call Center Hub</div>'
+    + '</td></tr>'
+    + '</table>'
+    + '</td></tr></table>'
+    + '</body></html>'
+}
+
+async function sendTicketEmails(task, type='new') {
+  // Re-check backend every time before sending
+  await checkBackend()
+  if (_useBackend) {
+    try {
+      const res = await fetch(API+'/notify/new-ticket', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({task, type})})
+      const r = await res.json()
+      if (r.sent > 0) showToast('Email sent to ' + r.sent + ' recipient' + (r.sent>1?'s':'') + '!', 'success')
+      else showToast('No real emails — add real emails in Admin > Users', 'info')
+    } catch(e) { console.warn('[Email]', e.message) }
+    return
+  }
+  // Fallback — no server
+  showToast('Server not running — start server for emails', 'info')
+}
+
+function showEmailModal(task,type,members,mailto,subject,body){
+  document.getElementById('modal-container').innerHTML=`
+    <div class="modal-overlay" onclick="if(event.target===this)closeModal()">
+      <div class="modal-box" style="width:620px">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-lg font-bold text-slate-800">${type==='reminder'?'⏰ Send Reminder':'📧 Send Notification'}</h2>
+          <button onclick="closeModal()" class="text-slate-400 hover:text-slate-700 text-xl font-bold">&times;</button>
+        </div>
+        <div class="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-4">
+          <div class="text-sm font-semibold text-blue-800 mb-2">Recipients</div>
+          <div class="flex flex-wrap gap-2">${members.map(m=>`<span class="bg-white border border-blue-200 text-blue-700 text-xs px-2 py-1 rounded-full">${m.name} &lt;${m.email}&gt;</span>`).join('')}</div>
+        </div>
+        <div class="mb-3"><label class="form-label">Subject</label><div class="bg-slate-50 border border-slate-200 rounded-lg p-3 text-sm text-slate-700">${subject}</div></div>
+        <pre class="bg-slate-50 border border-slate-200 rounded-lg p-3 text-xs text-slate-700 overflow-auto max-h-48 whitespace-pre-wrap mb-4">${body}</pre>
+        <div class="bg-green-50 border border-green-200 rounded-xl p-3 mb-4 text-sm text-green-700">
+          ✅ Clicking "Open in Email App" opens Gmail / Outlook pre-filled — just click Send.
+        </div>
+        <div class="flex gap-3">
+          <a href="${mailto}" class="btn btn-primary flex-1 justify-center" onclick="closeModal();showToast('Email app opened!')">📤 Open in Email App</a>
+          <button onclick="closeModal()" class="btn btn-secondary">Skip</button>
+        </div>
+      </div>
+    </div>`
+}
+
+async function renderEmailSettings(){
+  const el=document.getElementById('admin-tab-content')
+  el.innerHTML='<div class="text-slate-400 p-4">Loading...</div>'
+  let serverCfg={}
+  if (_useBackend){ try{ serverCfg=await(await fetch(API+'/email-config')).json() }catch{} }
+  el.innerHTML=`
+    <div class="max-w-2xl space-y-5">
+      <div class="p-4 rounded-xl ${_useBackend?'bg-green-50 border border-green-200':'bg-amber-50 border border-amber-200'}">
+        <div class="font-bold ${_useBackend?'text-green-800':'text-amber-800'} mb-1">
+          ${_useBackend?'✅ Backend running — emails send automatically':'⚠️ Backend not running — using mailto fallback'}
+        </div>
+        <div class="text-sm ${_useBackend?'text-green-700':'text-amber-700'}">
+          ${_useBackend
+            ?'Emails send fully automatically. Reminders fire every minute.'
+            :'Run <code class="bg-amber-100 px-1 rounded">node server.cjs</code> then open <strong>http://localhost:3001/app.html</strong>'}
+        </div>
+      </div>
+      ${_useBackend?`
+      <div class="bg-white rounded-xl border border-slate-200 p-6 space-y-4">
+        <div class="font-semibold text-slate-800">Gmail Configuration</div>
+        <div class="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-700">
+          Use a Gmail App Password (not your normal password).<br/>
+          Gmail → Settings → Security → 2-Step Verification → App Passwords → generate one.
+        </div>
+        <div><label class="form-label">Gmail Address</label><input id="em-user" type="email" class="form-input" value="${serverCfg.gmailUser||''}"/></div>
+        <div><label class="form-label">Gmail App Password</label><input id="em-pass" type="password" class="form-input" value="${serverCfg.gmailPass||''}"/></div>
+        <div class="flex gap-3 pt-1">
+          <button onclick="saveEmailCfg()" class="btn btn-primary">Save</button>
+          <button onclick="testEmailBackend()" class="btn btn-secondary">Send Test</button>
+        </div>
+        <div id="em-result" class="hidden text-sm rounded-lg p-3"></div>
+      </div>`:``}
+      <div class="bg-white rounded-xl border border-slate-200 p-6">
+        <div class="font-semibold text-slate-800 mb-3">Team Notification Emails</div>
+        <table class="w-full text-sm">
+          <thead><tr class="border-b border-slate-200"><th class="text-left p-2 text-slate-500">Name</th><th class="text-left p-2 text-slate-500">Email</th><th class="text-left p-2 text-slate-500">Team</th></tr></thead>
+          <tbody>${DEMO_USERS.map(u=>`<tr class="border-b border-slate-100"><td class="p-2 font-medium">${u.name}</td><td class="p-2 text-blue-600">${u.email}</td><td class="p-2 text-slate-600">${getTeamName(u.teamId)}</td></tr>`).join('')}</tbody>
+        </table>
+        <p class="text-xs text-slate-400 mt-3">To use real emails: open <code>server.cjs</code> and update the <code>USERS</code> array.</p>
+      </div>
+    </div>`
+}
+
+async function saveEmailCfg(){
+  const cfg={gmailUser:document.getElementById('em-user')?.value.trim(),gmailPass:document.getElementById('em-pass')?.value.trim()}
+  const r=await fetch(API+'/email-config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(cfg)})
+  const res=await r.json()
+  showToast(res.ok?'Email config saved!':'Save failed',res.ok?'success':'error')
+}
+
+async function testEmailBackend(){
+  const resultEl=document.getElementById('em-result')
+  resultEl.className='text-sm rounded-lg p-3 bg-blue-50 text-blue-700'
+  resultEl.textContent='Sending test email...'
+  resultEl.classList.remove('hidden')
+  try {
+    await saveEmailCfg()
+    const r=await fetch(API+'/email-test',{method:'POST'})
+    const res=await r.json()
+    resultEl.className=`text-sm rounded-lg p-3 ${res.ok?'bg-green-50 text-green-700':'bg-red-50 text-red-700'}`
+    resultEl.textContent=res.ok?'✅ Test email sent! Check your inbox.':'❌ Failed: '+res.error
+  } catch(e){
+    resultEl.className='text-sm rounded-lg p-3 bg-red-50 text-red-700'
+    resultEl.textContent='❌ Could not reach backend: '+e.message
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  REMINDER SCHEDULER
+// ══════════════════════════════════════════════════════════════════════════════
+function startReminderScheduler(){
+  if ('Notification' in window && Notification.permission==='default') Notification.requestPermission()
+  setInterval(checkBrowserReminders,30000)
+  checkBrowserReminders()
+}
+
+function checkBrowserReminders(){
+  if (_useBackend) return
+  const tasks=getTasks(), now=new Date()
+  let changed=false
+  tasks.forEach(t=>{
+    if (!t.reminder_at||t.reminder_sent||t.status==='closed') return
+    if (now>=new Date(t.reminder_at)){
+      t.reminder_sent=true; changed=true
+      if ('Notification' in window && Notification.permission==='granted'){
+        const n=new Notification('⏰ Ticket Reminder — Call Center Hub',{body:`"${t.title}" — Due ${fmtDate(t.due_date)}`,requireInteraction:true})
+        n.onclick=()=>{ window.focus(); openSlideOver(t.id); n.close() }
+      }
+      showToast(`⏰ Reminder: "${t.title}"`,'info')
+      setTimeout(()=>sendTicketEmails(t,'reminder'),1000)
+    }
+  })
+  if (changed) saveTasks(tasks)
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  INIT
+// ══════════════════════════════════════════════════════════════════════════════
+window.addEventListener('DOMContentLoaded', async ()=>{
+  initSupabase()
+  if (_sbReady) {
+    await syncFromSupabase()
+  } else {
+    await checkBackend()
+    if (_useBackend) await syncFromBackend()
+  }
+
+  const saved=localStorage.getItem('cch_session')
+  if (saved){
+    try{
+      currentUser=JSON.parse(saved)
+      startReminderScheduler()
+      if (_sbReady) { subscribeRealtime(); startApp() }
+      else startApp()
+      if (window.location.hash.startsWith('#task-')){
+        const id=window.location.hash.replace('#task-','')
+        setTimeout(()=>openSlideOver(id),300)
+      }
+      return
+    }catch{}
+  }
+  document.getElementById('page-login').style.display='flex'
+})
+</script>
+</body>
+</html>
