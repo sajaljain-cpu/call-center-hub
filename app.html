@@ -966,6 +966,26 @@ function renderSlideOver(id) {
         </div>
       </div>
 
+      <!-- Attachments -->
+      ${task.attachments && task.attachments.length ? `
+      <div>
+        <p class="text-xs text-slate-400 uppercase tracking-wide font-semibold mb-2">Attachments (${task.attachments.length})</p>
+        <div class="space-y-2">
+          ${task.attachments.map(a=>{
+            const ext=a.name.split('.').pop().toUpperCase()
+            const size=a.size>1024*1024?(a.size/1024/1024).toFixed(1)+'MB':Math.round(a.size/1024)+'KB'
+            return `<a href="${a.url}" target="_blank" class="flex items-center gap-3 bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 hover:bg-blue-50 hover:border-blue-300 transition-colors group">
+              <span class="text-lg">📎</span>
+              <div class="flex-1 min-w-0">
+                <div class="text-sm font-medium text-slate-700 truncate group-hover:text-blue-700">${a.name}</div>
+                <div class="text-xs text-slate-400">${ext} · ${size}</div>
+              </div>
+              <span class="text-xs text-blue-500 font-medium">Download ↓</span>
+            </a>`
+          }).join('')}
+        </div>
+      </div>` : ''}
+
       <!-- Description -->
       ${task.description?`
       <div>
@@ -1327,6 +1347,7 @@ function renderMyTasks() {
 //  CREATE TASK MODAL
 // ══════════════════════════════════════════════════════════════════════════════
 function openCreateModal() {
+  _pendingFiles = []
   const cats         = getCategories()
   const lobs         = getLOBs()
   const internalTeams= getTeams().filter(t=>t.type==='internal'||t.type==='admin')
@@ -1414,6 +1435,18 @@ function openCreateModal() {
               <input id="ct-reminder" type="datetime-local" class="form-input"/>
             </div>
           </div>
+          <div>
+            <label class="form-label">Attachments <span class="text-slate-400 text-xs">(Excel, Word, PDF, images — max 10MB each)</span></label>
+            <div id="ct-drop-zone" class="border-2 border-dashed border-slate-300 rounded-lg p-4 text-center cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-colors"
+              onclick="document.getElementById('ct-files').click()"
+              ondragover="event.preventDefault();this.classList.add('border-blue-400','bg-blue-50')"
+              ondragleave="this.classList.remove('border-blue-400','bg-blue-50')"
+              ondrop="event.preventDefault();this.classList.remove('border-blue-400','bg-blue-50');handleFilesDrop(event.dataTransfer.files)">
+              <div class="text-slate-400 text-sm">📎 Click or drag files here</div>
+              <input id="ct-files" type="file" multiple accept=".xlsx,.xls,.doc,.docx,.pdf,.csv,.png,.jpg,.jpeg,.gif,.txt" class="hidden" onchange="handleFilesSelect(this.files)"/>
+            </div>
+            <div id="ct-file-list" class="mt-2 space-y-1"></div>
+          </div>
           <div class="flex items-center gap-2">
             <input type="checkbox" id="ct-notify" checked class="w-4 h-4"/>
             <label for="ct-notify" class="text-sm text-slate-700">Notify team by email on creation</label>
@@ -1474,7 +1507,55 @@ function rInsertTable() {
   if (el) { el.focus(); document.execCommand('insertHTML', false, tbl) }
 }
 
-function submitCreate() {
+// ── File attachment helpers ────────────────────────────────────────────────
+var _pendingFiles = []
+
+function handleFilesSelect(files) { addPendingFiles(Array.from(files)) }
+function handleFilesDrop(files)   { addPendingFiles(Array.from(files)) }
+
+function addPendingFiles(files) {
+  files.forEach(function(f) {
+    if (f.size > 10*1024*1024) { showToast(f.name+' exceeds 10MB limit','error'); return }
+    if (_pendingFiles.some(function(x){return x.name===f.name})) return
+    _pendingFiles.push(f)
+  })
+  renderPendingFiles()
+}
+
+function removePendingFile(name) {
+  _pendingFiles = _pendingFiles.filter(function(f){return f.name!==name})
+  renderPendingFiles()
+}
+
+function renderPendingFiles() {
+  var el = document.getElementById('ct-file-list')
+  if (!el) return
+  if (_pendingFiles.length===0) { el.innerHTML=''; return }
+  el.innerHTML = _pendingFiles.map(function(f) {
+    var size = f.size>1024*1024 ? (f.size/1024/1024).toFixed(1)+'MB' : Math.round(f.size/1024)+'KB'
+    var ext  = f.name.split('.').pop().toUpperCase()
+    return '<div class="flex items-center justify-between bg-slate-50 rounded px-3 py-1.5 text-sm">'
+      + '<span class="text-slate-700">📄 <strong>'+ext+'</strong> — '+f.name+' <span class="text-slate-400">('+size+')</span></span>'
+      + '<button type="button" onclick="removePendingFile(\''+f.name+'\')" class="text-red-400 hover:text-red-600 ml-2 font-bold text-xs">✕</button>'
+      + '</div>'
+  }).join('')
+}
+
+async function uploadAttachments(ticketId) {
+  if (!_pendingFiles.length || !_sb) return []
+  var results = []
+  for (var i=0; i<_pendingFiles.length; i++) {
+    var f    = _pendingFiles[i]
+    var path = ticketId+'/'+Date.now()+'-'+f.name
+    var res  = await _sb.storage.from('cch-attachments').upload(path, f, {upsert:true})
+    if (res.error) { console.warn('Upload failed:',f.name, res.error.message); continue }
+    var pub  = _sb.storage.from('cch-attachments').getPublicUrl(path)
+    results.push({ name:f.name, url:pub.data.publicUrl, size:f.size, type:f.type })
+  }
+  return results
+}
+
+async function submitCreate() {
   const title    = document.getElementById('ct-title')?.value.trim()
   const descEl   = document.getElementById('ct-desc')
   const desc     = descEl ? descEl.innerHTML.trim() : ''
@@ -1492,14 +1573,23 @@ function submitCreate() {
   if (!dueDate) { errEl.textContent='Due date is required'; errEl.classList.remove('hidden'); return }
   errEl.classList.add('hidden')
 
+  const ticketId = nextTicketId()
+
+  // Show uploading state
+  const createBtn = document.querySelector('#modal-container .btn-primary')
+  if (createBtn) { createBtn.disabled=true; createBtn.textContent='Uploading...' }
+
+  const attachments = await uploadAttachments(ticketId)
+
   const task = {
-    id: nextTicketId(), title, description:desc, category, priority, lob,
+    id: ticketId, title, description:desc, category, priority, lob,
     status:'open',
     assigned_team_id:teamId, assigned_person_id:personId||null,
-    created_by_team_id: currentUser.teamId,  // which CC raised this
+    created_by_team_id: currentUser.teamId,
     due_date:dueDate, reminder_at:reminder||null, reminder_sent:false,
     created_by:currentUser.id, created_by_name:currentUser.name,
     created_at:new Date().toISOString(), closed_at:null,
+    attachments: attachments,
     comments:[], history:[{action:'Ticket created',by:currentUser.name,at:new Date().toISOString()}],
   }
 
