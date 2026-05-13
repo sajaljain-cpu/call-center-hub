@@ -11,9 +11,9 @@ const nodemailer   = require('nodemailer')
 
 const app    = express()
 const PORT   = process.env.PORT || 3001
-const GMAIL_USER = 'update.wiom@gmail.com'
-const GMAIL_PASS = 'hzuzvjgykkcwisfg'
-const FROM   = 'Call Center Hub <update.wiom@gmail.com>'
+const GMAIL_USER = process.env.GMAIL_USER || 'update.wiom@gmail.com'
+const GMAIL_PASS = process.env.GMAIL_PASS || ''
+const FROM   = `Call Center Hub <${GMAIL_USER}>`
 
 const transporter = nodemailer.createTransport({
   service: 'gmail',
@@ -23,6 +23,7 @@ const transporter = nodemailer.createTransport({
 app.use(cors())
 app.use(express.json())
 app.use(express.static(__dirname))
+app.get('/', (req, res) => res.redirect('/app.html'))
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function fmtDate(d) {
@@ -34,8 +35,8 @@ function fmtDate(d) {
 function isOverdue(t) { return t.due_date && t.status !== 'closed' && new Date(t.due_date) < new Date() }
 
 // ─── Fetch users+teams from Supabase ──────────────────────────────────────────
-const SUPABASE_URL      = 'https://lfcjxqhmqcqhocrhetiq.supabase.co'
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxmY2p4cWhtcWNxaG9jcmhldGlxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ1MzMxMDAsImV4cCI6MjA5MDEwOTEwMH0.9mWqY9ZZgcerxU6TFUs3ped4ZJs9eDxcRUUdOOFmS-s'
+const SUPABASE_URL      = process.env.SUPABASE_URL || 'https://lfcjxqhmqcqhocrhetiq.supabase.co'
+const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || ''
 
 async function getConfigFromSupabase(key) {
   try {
